@@ -1,0 +1,18 @@
+# Do not copy local development artifacts into the image
+.venv/
+node_modules/
+__pycache__/
+*.pyc
+.git/
+.gitignore
+.raw-cache/
+
+# Large/generated data; container will create these at runtime
+raw/
+processed/
+
+# OS/IDE files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

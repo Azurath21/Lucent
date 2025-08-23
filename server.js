@@ -21,7 +21,7 @@ function getPythonPath() {
     if (fs.existsSync(venvPyWin)) return venvPyWin;
     return 'python';
   }
-  // In Linux containers, prefer system python3
+  // In Linux containers, force system python3 path to avoid Windows venv remnants
   const candidates = ['/usr/bin/python3', '/usr/local/bin/python3', 'python3', 'python'];
   for (const c of candidates) {
     try {
@@ -53,12 +53,20 @@ app.post('/api/run', (req, res) => {
   ];
   if (headless) args.push('--headless');
 
-  const py = spawn(getPythonPath(), args, { cwd: BASE_DIR, windowsHide: true });
+  const pyPath = getPythonPath();
+  console.log(`Spawning Python: ${pyPath}`);
+  const py = spawn(pyPath, args, { cwd: BASE_DIR, windowsHide: true });
 
   let out = '';
   let err = '';
   py.stdout.on('data', (d) => { out += d.toString(); });
   py.stderr.on('data', (d) => { err += d.toString(); });
+  py.on('error', (e) => {
+    console.error('Failed to start Python process:', e);
+    try {
+      return res.status(500).json({ ok: false, error: `Failed to start Python: ${e.message}` });
+    } catch (_) { /* response may have been sent */ }
+  });
   py.on('close', (code) => {
     // Try to parse last JSON object from stdout
     let jsonStr = out.trim();
