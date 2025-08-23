@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \
     chromium \
+    xvfb \
     fonts-liberation \
     libasound2 \
     libatk-bridge2.0-0 \
@@ -30,6 +31,7 @@ RUN apt-get update && apt-get install -y \
 
 # Set Chrome binary path for our scraper
 ENV CHROME_BIN=/usr/bin/chromium
+ENV DISPLAY=:99
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
@@ -51,5 +53,5 @@ COPY . .
 EXPOSE 5000
 ENV PORT=5000
 
-# Start the Node server (which spawns Python as needed)
-CMD ["node", "server.js"]
+# Start a virtual X display, then launch the Node server
+CMD ["bash", "-lc", "Xvfb :99 -screen 0 1280x1024x24 & node server.js"]

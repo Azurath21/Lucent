@@ -104,11 +104,11 @@ class CarousellScraper(object):
         # Selenium 4-compatible driver initialization
         chrome_options = Options()
         # Auto-enable headless in containers / non-GUI envs
+        # If DISPLAY is present (e.g., Xvfb in container), allow headed mode even on Render.
         auto_headless = (
             headless or
             os.environ.get('HEADLESS', '').lower() == 'true' or
-            not os.environ.get('DISPLAY') or
-            os.environ.get('RENDER') is not None
+            not os.environ.get('DISPLAY')
         )
         if auto_headless:
             chrome_options.add_argument('--headless=new')
