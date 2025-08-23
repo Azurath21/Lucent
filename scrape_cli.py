@@ -14,6 +14,8 @@ def main():
     parser.add_argument("--sort", default="3")
     parser.add_argument("--delay", type=int, default=15)
     parser.add_argument("--headless", action="store_true")
+    parser.add_argument("--no-fast", dest="fast", action="store_false", help="Disable per-run speed optimizations")
+    parser.set_defaults(fast=True)
     args = parser.parse_args()
 
     scraper = CarousellScraper(
@@ -24,6 +26,7 @@ def main():
         sort=args.sort,
         headless=args.headless,
         delay=args.delay,
+        fast=args.fast,
     )
     try:
         result = scraper.run_and_save()

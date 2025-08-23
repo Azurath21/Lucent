@@ -39,6 +39,7 @@ def api_run():
         max_price=max_price,
         sort=sort,
         headless=False,
+        fast=True,
     )
     try:
         result = scraper.run_and_save()

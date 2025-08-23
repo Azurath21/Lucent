@@ -42,7 +42,7 @@ def find_chrome_binary() -> Optional[str]:
 class CarousellScraper(object):
     def __init__(self, item='baby chair', condition='brand new', location='Woodlands',
                  distance='5', min_price='0', max_price='150', sort='recent',
-                 chromedriver_path='chromedriver.exe', headless=False, delay=20):
+                 chromedriver_path='chromedriver.exe', headless=False, delay=20, fast=False):
         # For data logging
         self.curdatetime = datetime.now().strftime('%Y%m%d_%H%M%S')
         self.item = item
@@ -54,6 +54,7 @@ class CarousellScraper(object):
         # New domain and URL shape
         self.base_url = 'https://www.carousell.sg'
         self.delay = delay
+        self.fast = fast
 
         # Map human-friendly condition/sort to new layered_condition/sort_by values
         def map_condition(val):
@@ -153,13 +154,26 @@ class CarousellScraper(object):
         # Use Selenium Manager (auto-resolves correct ChromeDriver for installed Chrome)
         # We intentionally do NOT fall back to the bundled chromedriver.exe to avoid version mismatches.
         print("[Info] Starting Chrome via Selenium Manager (no local chromedriver)")
-        chrome_options.page_load_strategy = 'eager'
+        chrome_options.page_load_strategy = 'none' if self.fast else 'eager'
         # Log ChromeDriver output for debugging
         try:
             service = Service(log_output='chromedriver.log')
         except Exception:
             service = Service()
         self.driver = webdriver.Chrome(service=service, options=chrome_options)
+        # If fast mode, block heavy resources via CDP to speed up rendering
+        if self.fast:
+            try:
+                self.driver.execute_cdp_cmd('Network.enable', {})
+                self.driver.execute_cdp_cmd('Network.setBlockedURLs', {
+                    'urls': [
+                        '*.png','*.jpg','*.jpeg','*.gif','*.webp','*.svg',
+                        '*.mp4','*.webm','*.m4v','*.mov','*.avi','*.mkv',
+                        '*.woff','*.woff2','*.ttf','*.otf'
+                    ]
+                })
+            except Exception:
+                pass
         try:
             # Allow slower loads in container cold starts
             self.driver.set_page_load_timeout(max(self.delay, 30))
@@ -241,13 +255,14 @@ class CarousellScraper(object):
         except TimeoutException:
             print('Time out to load', self.url)
 
-        # Save screenshot (safe)
-        try:
-            screenshot_path = os.path.join('raw', f"{self.curdatetime}_CarousellSearch.png")
-            self.driver.get_screenshot_as_file(screenshot_path)
-            print('Saved:', screenshot_path)
-        except Exception as e:
-            print('[Warn] Failed to capture screenshot:', e)
+        # Save screenshot (safe) unless fast mode is enabled
+        if not self.fast:
+            try:
+                screenshot_path = os.path.join('raw', f"{self.curdatetime}_CarousellSearch.png")
+                self.driver.get_screenshot_as_file(screenshot_path)
+                print('Saved:', screenshot_path)
+            except Exception as e:
+                print('[Warn] Failed to capture screenshot:', e)
 
     def _safe_click(self, element):
         try:
@@ -323,7 +338,7 @@ class CarousellScraper(object):
                     title = ps[0].text if len(ps) > 0 else ''
                     price = ps[1].text if len(ps) > 1 else ''
 
-                    seller_rating = self.extract_item_seller_ratings(seller_link) if seller_link else ''
+                    seller_rating = '' if self.fast else (self.extract_item_seller_ratings(seller_link) if seller_link else '')
 
                     if title and re.search(r'(?i)(baby.*chair)', title) is not None:
                         sellers.append(seller)
@@ -460,9 +475,8 @@ class CarousellScraper(object):
         """Convenience method for web layer: loads URL, extracts items, returns paths and counts."""
         self.load_carousell_url()
         result = self.extract_item_title()
-        # Find latest screenshot saved in raw for this run timestamp
-        screenshot_path = os.path.join('raw', f"{self.curdatetime}_CarousellSearch.png")
-        result['screenshot_path'] = screenshot_path
+        # Provide screenshot path only if we captured one
+        result['screenshot_path'] = '' if self.fast else os.path.join('raw', f"{self.curdatetime}_CarousellSearch.png")
         return result
 
 
