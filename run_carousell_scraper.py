@@ -42,7 +42,7 @@ def find_chrome_binary() -> Optional[str]:
 class CarousellScraper(object):
     def __init__(self, item='baby chair', condition='brand new', location='Woodlands',
                  distance='5', min_price='0', max_price='150', sort='recent',
-                 chromedriver_path='chromedriver.exe', headless=False, delay=15):
+                 chromedriver_path='chromedriver.exe', headless=False, delay=20):
         # For data logging
         self.curdatetime = datetime.now().strftime('%Y%m%d_%H%M%S')
         self.item = item
@@ -112,13 +112,31 @@ class CarousellScraper(object):
         )
         if auto_headless:
             chrome_options.add_argument('--headless=new')
-            chrome_options.add_argument('--disable-gpu')
             chrome_options.add_argument('--window-size=1280,1024')
         # Recommended stability flags
         chrome_options.add_argument('--no-sandbox')
         chrome_options.add_argument('--disable-dev-shm-usage')
         chrome_options.add_argument('--disable-software-rasterizer')
         chrome_options.add_argument('--remote-debugging-port=9222')
+        chrome_options.add_argument('--disable-gpu')  # also disable when non-headless to avoid context errors
+        chrome_options.add_argument('--disable-extensions')
+        chrome_options.add_argument('--disable-background-networking')
+        chrome_options.add_argument('--disable-sync')
+        chrome_options.add_argument('--metrics-recording-only')
+        chrome_options.add_argument('--no-first-run')
+        chrome_options.add_argument('--no-default-browser-check')
+        chrome_options.add_argument('--mute-audio')
+        chrome_options.add_argument('--hide-scrollbars')
+        chrome_options.add_argument('--no-zygote')
+        chrome_options.add_argument('--disable-features=VizDisplayCompositor')
+        chrome_options.add_argument('--disable-blink-features=AutomationControlled')
+        # Realistic User-Agent to reduce blocks/headless detection
+        chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+        try:
+            chrome_options.add_experimental_option('excludeSwitches', ['enable-automation'])
+            chrome_options.add_experimental_option('useAutomationExtension', False)
+        except Exception:
+            pass
         chrome_options.add_argument('--lang=en-US')
         # Start minimized/off-screen to avoid popping up while not being headless
         chrome_options.add_argument('--start-minimized')
@@ -135,7 +153,18 @@ class CarousellScraper(object):
         # Use Selenium Manager (auto-resolves correct ChromeDriver for installed Chrome)
         # We intentionally do NOT fall back to the bundled chromedriver.exe to avoid version mismatches.
         print("[Info] Starting Chrome via Selenium Manager (no local chromedriver)")
-        self.driver = webdriver.Chrome(options=chrome_options)
+        chrome_options.page_load_strategy = 'eager'
+        # Log ChromeDriver output for debugging
+        try:
+            service = Service(log_output='chromedriver.log')
+        except Exception:
+            service = Service()
+        self.driver = webdriver.Chrome(service=service, options=chrome_options)
+        try:
+            # Allow slower loads in container cold starts
+            self.driver.set_page_load_timeout(max(self.delay, 30))
+        except Exception:
+            pass
 
         # Ensure the window is minimized right after launch
         try:
@@ -164,9 +193,18 @@ class CarousellScraper(object):
         except Exception:
             pass
 
-        self.driver.get(self.url)
+        # Navigate with a retry if renderer/page load times out
         try:
-            wait = WebDriverWait(self.driver, self.delay)
+            self.driver.get(self.url)
+        except Exception:
+            try:
+                time.sleep(2)
+                self.driver.get(self.url)
+            except Exception:
+                pass
+
+        try:
+            wait = WebDriverWait(self.driver, max(self.delay, 20))
 
             # Attempt to dismiss any cookie/marketing popups early
             self.dismiss_popups()
@@ -203,10 +241,13 @@ class CarousellScraper(object):
         except TimeoutException:
             print('Time out to load', self.url)
 
-        # Save screenshot
-        screenshot_path = os.path.join('raw', f"{self.curdatetime}_CarousellSearch.png")
-        self.driver.get_screenshot_as_file(screenshot_path)
-        print('Saved:', screenshot_path)
+        # Save screenshot (safe)
+        try:
+            screenshot_path = os.path.join('raw', f"{self.curdatetime}_CarousellSearch.png")
+            self.driver.get_screenshot_as_file(screenshot_path)
+            print('Saved:', screenshot_path)
+        except Exception as e:
+            print('[Warn] Failed to capture screenshot:', e)
 
     def _safe_click(self, element):
         try:
