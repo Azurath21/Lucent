@@ -15,11 +15,24 @@ app.use(express.json({ limit: '1mb' }));
 app.use(express.static(WEB_DIR));
 
 function getPythonPath() {
-  // Prefer local venv on Windows
-  const venvPy = path.join(BASE_DIR, '.venv', 'Scripts', 'python.exe');
-  if (fs.existsSync(venvPy)) return venvPy;
-  // Fallbacks
-  return process.platform === 'win32' ? 'python' : 'python3';
+  if (process.platform === 'win32') {
+    // Prefer local venv on Windows only
+    const venvPyWin = path.join(BASE_DIR, '.venv', 'Scripts', 'python.exe');
+    if (fs.existsSync(venvPyWin)) return venvPyWin;
+    return 'python';
+  }
+  // In Linux containers, prefer system python3
+  const candidates = ['/usr/bin/python3', '/usr/local/bin/python3', 'python3', 'python'];
+  for (const c of candidates) {
+    try {
+      if (c.startsWith('/')) {
+        if (fs.existsSync(c)) return c;
+      } else {
+        return c; // let PATH resolve it
+      }
+    } catch (_) { /* ignore */ }
+  }
+  return 'python3';
 }
 
 app.get('/', (req, res) => {
