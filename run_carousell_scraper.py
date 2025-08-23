@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 import time
 from urllib.request import urlopen, Request
 from urllib.parse import quote
+from typing import Optional
 
 from bs4 import BeautifulSoup as bs
 from selenium import webdriver
@@ -16,7 +17,7 @@ from selenium.webdriver.common.by import By
 from selenium.common.exceptions import TimeoutException
 
 
-def find_chrome_binary() -> str | None:
+def find_chrome_binary() -> Optional[str]:
     """Attempt to locate the Chrome executable on Windows.
     Honors CHROME_BIN env var first, then checks common install paths.
     """
