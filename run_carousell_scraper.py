@@ -42,7 +42,7 @@ def find_chrome_binary() -> Optional[str]:
 
 class CarousellScraper(object):
     def __init__(self, item='baby chair', condition='brand new', location='Woodlands',
-                 distance='5', min_price='0', max_price='150', sort='recent',
+                 distance='5', min_price='0', sort='recent',
                  chromedriver_path='chromedriver.exe', headless=False, delay=20, fast=False):
         # For data logging
         self.curdatetime = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -51,7 +51,6 @@ class CarousellScraper(object):
         self.location = location
         self.distance = distance
         self.min_price = min_price
-        self.max_price = max_price
         # New domain and URL shape
         self.base_url = 'https://www.carousell.sg'
         self.delay = delay
@@ -98,7 +97,7 @@ class CarousellScraper(object):
         # New URL: drop location; include new flags and params
         self.url = (
             f"{self.base_url}/search/{encoded_item}?addRecent=true&canChangeKeyword=true&includeSuggestions=true"
-            f"&layered_condition={layered_condition}&price_end={max_price}&price_start={min_price}"
+            f"&layered_condition={layered_condition}&price_start={min_price}"
             f"&sort_by={sort_by}&t-search_query_source=direct_search"
         )
         print(self.url)

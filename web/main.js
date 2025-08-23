@@ -15,16 +15,16 @@ form.addEventListener('submit', async (e) => {
   hide(errorBox);
 
   const item = document.getElementById('item').value.trim();
+  const brand = document.getElementById('brand').value.trim();
+  const notes = document.getElementById('notes').value.trim();
   const condition = document.getElementById('condition').value;
-  const sort = document.getElementById('sort').value;
   const min_price = document.getElementById('min_price').value;
-  const max_price = document.getElementById('max_price').value;
 
   try {
     const resp = await fetch('/api/run', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ item, condition, sort, min_price, max_price }),
+      body: JSON.stringify({ item, brand, notes, condition, min_price }),
     });
     const data = await resp.json();
     if (!data.ok) throw new Error(data.error || 'Unknown error');

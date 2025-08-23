@@ -18,6 +18,24 @@
 
         <div class="row">
           <div>
+            <label for="brand">Brand</label>
+            <input id="brand" name="brand" placeholder="e.g. IKEA" />
+            <div class="hint">Optional. Appended to the search term.</div>
+          </div>
+          <div>
+            <label for="model">Model</label>
+            <input id="model" name="model" placeholder="e.g. Antilop" />
+            <div class="hint">Optional. Appended to the search term.</div>
+          </div>
+          <div>
+            <label for="notes">Notes</label>
+            <input id="notes" name="notes" placeholder="e.g. foldable, wooden" />
+            <div class="hint">Optional. Additional keywords.</div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
             <label for="condition">Condition</label>
             <select id="condition" name="condition">
               <option value="3" selected>Brand new (3)</option>
@@ -26,17 +44,7 @@
               <option value="5">Well used (5)</option>
               <option value="6">Heavily used (6)</option>
             </select>
-            <div class="hint">Maps to layered_condition</div>
-          </div>
-          <div>
-            <label for="sort">Sort By</label>
-            <select id="sort" name="sort">
-              <option value="1">Best Match (1)</option>
-              <option value="3" selected>Recent (3)</option>
-              <option value="5">Price - High to Low (5)</option>
-              <option value="4">Price - Low to High (4)</option>
-              <option value="6">Nearby (6)</option>
-            </select>
+            <div class="hint">Maps to layered_condition. Sorting is fixed to Recent.</div>
           </div>
         </div>
 
@@ -44,10 +52,6 @@
           <div>
             <label for="min_price">Min Price</label>
             <input id="min_price" name="min_price" type="number" min="0" step="1" value="0" />
-          </div>
-          <div>
-            <label for="max_price">Max Price</label>
-            <input id="max_price" name="max_price" type="number" min="0" step="1" value="150" />
           </div>
         </div>
 

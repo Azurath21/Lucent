@@ -7,10 +7,15 @@ from run_carousell_scraper import CarousellScraper
 
 def main():
     parser = argparse.ArgumentParser(description="CLI wrapper for CarousellScraper that outputs JSON")
-    parser.add_argument("--item", default="baby chair")
-    parser.add_argument("--condition", default="3", help="layered_condition value or friendly text (e.g., 'brand new')")
-    parser.add_argument("--min_price", default="0")
-    parser.add_argument("--max_price", default="150")
+    # Required primary field
+    parser.add_argument("--item", required=True, help="Main item name to search for (required)")
+    # New subfields
+    parser.add_argument("--brand", default="", help="Brand to include in search keywords")
+    parser.add_argument("--model", default="", help="Model to include in search keywords")
+    parser.add_argument("--notes", default="", help="Additional notes/keywords to include in search")
+    parser.add_argument("--condition", default="3", help="Condition filter: layered_condition value or friendly text (e.g., 'brand new')")
+    parser.add_argument("--min_price", default="0", help="Minimum price filter")
+    # Keep these as optional operational controls
     parser.add_argument("--sort", default="3")
     parser.add_argument("--delay", type=int, default=15)
     parser.add_argument("--headless", action="store_true")
@@ -18,11 +23,20 @@ def main():
     parser.set_defaults(fast=True)
     args = parser.parse_args()
 
+    # Build the search term by combining item + brand + notes
+    search_term_parts = [args.item.strip()]
+    if args.brand.strip():
+        search_term_parts.append(args.brand.strip())
+    if args.model.strip():
+        search_term_parts.append(args.model.strip())
+    if args.notes.strip():
+        search_term_parts.append(args.notes.strip())
+    search_term = " ".join(search_term_parts)
+
     scraper = CarousellScraper(
-        item=args.item,
+        item=search_term,
         condition=args.condition,
         min_price=args.min_price,
-        max_price=args.max_price,
         sort=args.sort,
         headless=args.headless,
         delay=args.delay,

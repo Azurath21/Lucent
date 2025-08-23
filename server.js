@@ -39,61 +39,87 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(WEB_DIR, 'index.html'));
 });
 
-app.post('/api/run', (req, res) => {
-  const { item = 'baby chair', condition = '3', min_price = '0', max_price = '150', sort = '3', headless = false, delay = 15 } = req.body || {};
-
-  const args = [
-    path.join(BASE_DIR, 'scrape_cli.py'),
-    '--item', String(item),
-    '--condition', String(condition),
-    '--min_price', String(min_price),
-    '--max_price', String(max_price),
-    '--sort', String(sort),
-    '--delay', String(delay),
-  ];
-  if (headless) args.push('--headless');
-
-  const pyPath = getPythonPath();
-  console.log(`Spawning Python: ${pyPath}`);
-  const py = spawn(pyPath, args, { cwd: BASE_DIR, windowsHide: true });
-
-  let out = '';
-  let err = '';
-  py.stdout.on('data', (d) => { out += d.toString(); });
-  py.stderr.on('data', (d) => { err += d.toString(); });
-  py.on('error', (e) => {
-    console.error('Failed to start Python process:', e);
-    try {
-      return res.status(500).json({ ok: false, error: `Failed to start Python: ${e.message}` });
-    } catch (_) { /* response may have been sent */ }
-  });
-  py.on('close', (code) => {
-    // Try to parse last JSON object from stdout
-    let jsonStr = out.trim();
-    // In case there are logs before JSON, attempt to grab the last {...}
-    const lastBrace = jsonStr.lastIndexOf('{');
-    if (lastBrace > 0) jsonStr = jsonStr.slice(lastBrace);
-    try {
-      const data = JSON.parse(jsonStr);
-      if (data.ok) {
-        const csvName = path.basename(data.csv_path || '');
-        const shotName = path.basename(data.screenshot_path || '');
-        res.json({
-          ok: true,
-          query_url: data.query_url,
-          count: data.count || 0,
-          csv_name: csvName,
-          screenshot_name: shotName,
-          download_csv_url: csvName ? `/download/processed/${csvName}` : '',
-          view_screenshot_url: shotName ? `/view/raw/${shotName}` : '',
-        });
-      } else {
-        res.status(500).json({ ok: false, error: data.error || 'Unknown error from scraper' });
+// Helper: run a Python process and parse JSON from stdout (last JSON object)
+function runPythonJson(args) {
+  return new Promise((resolve, reject) => {
+    const pyPath = getPythonPath();
+    const child = spawn(pyPath, args, { cwd: BASE_DIR, windowsHide: true });
+    let out = '';
+    let err = '';
+    child.stdout.on('data', (d) => { out += d.toString(); });
+    child.stderr.on('data', (d) => { err += d.toString(); });
+    child.on('error', (e) => reject(new Error(`Failed to start Python: ${e.message}`)));
+    child.on('close', (code) => {
+      let jsonStr = (out || '').trim();
+      const lastBrace = jsonStr.lastIndexOf('{');
+      if (lastBrace > 0) jsonStr = jsonStr.slice(lastBrace);
+      try {
+        const data = JSON.parse(jsonStr || '{}');
+        if (data && data.ok) return resolve(data);
+        return reject(new Error(data && data.error ? data.error : `Python exited with code ${code}. stderr=${err.slice(-400)}`));
+      } catch (e) {
+        return reject(new Error(`Failed to parse JSON. code=${code}. stderr=${err.slice(-400)}`));
       }
-    } catch (e) {
-      res.status(500).json({ ok: false, error: `Failed to parse scraper output. code=${code}. stderr=${err.slice(-400)}` });
-    }
+    });
   });
+}
+
+app.post('/api/run', async (req, res) => {
+  try {
+    const { item = 'baby chair', brand = '', model = '', notes = '', condition = '3', min_price = '0', headless = false, delay = 15 } = req.body || {};
+    // All sort options to iterate: Best(1), Recent(3), High->Low(5), Low->High(4), Nearby(6)
+    const sorts = ['1', '3', '5', '4', '6'];
+
+    // Ensure processed dir exists
+    try { fs.mkdirSync(PROCESSED_DIR, { recursive: true }); } catch (_) {}
+
+    const csvPaths = [];
+    let lastQueryUrl = '';
+    let lastScreenshotName = '';
+
+    for (const sort of sorts) {
+      const args = [
+        path.join(BASE_DIR, 'scrape_cli.py'),
+        '--item', String(item),
+        '--condition', String(condition),
+        '--min_price', String(min_price),
+        '--sort', String(sort),
+        '--delay', String(delay),
+      ];
+      if (String(brand).trim()) args.push('--brand', String(brand));
+      if (String(model).trim()) args.push('--model', String(model));
+      if (String(notes).trim()) args.push('--notes', String(notes));
+      if (headless) args.push('--headless');
+
+      const data = await runPythonJson(args);
+      if (data.query_url) lastQueryUrl = data.query_url;
+      if (data.screenshot_path) lastScreenshotName = path.basename(data.screenshot_path);
+      if (data.csv_path) csvPaths.push(String(data.csv_path));
+    }
+
+    // Merge CSVs via merge_csvs.py
+    const itemSlug = [String(item), String(brand), String(model), String(notes)].filter(Boolean).join(' ').trim() || 'items';
+    const mergeArgs = [
+      path.join(BASE_DIR, 'merge_csvs.py'),
+      PROCESSED_DIR,
+      itemSlug,
+      ...csvPaths,
+    ];
+    const merged = await runPythonJson(mergeArgs);
+    const combinedName = path.basename(merged.csv_path || '');
+
+    return res.json({
+      ok: true,
+      query_url: lastQueryUrl,
+      count: merged.count || 0,
+      csv_name: combinedName,
+      screenshot_name: lastScreenshotName,
+      download_csv_url: combinedName ? `/download/processed/${combinedName}` : '',
+      view_screenshot_url: lastScreenshotName ? `/view/raw/${lastScreenshotName}` : '',
+    });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message || String(e) });
+  }
 });
 
 app.get('/download/processed/:filename', (req, res) => {
