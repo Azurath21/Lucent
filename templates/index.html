@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Carousell Web Scraper</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; background:#0f172a; color:#e2e8f0; }
+    .container { max-width: 900px; margin: 40px auto; padding: 24px; }
+    .card { background:#111827; border:1px solid #1f2937; border-radius: 12px; padding:24px; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+    h1 { margin-top:0; font-size: 24px; }
+    label { display:block; font-weight:600; margin: 14px 0 6px; }
+    input, select { width:100%; padding:12px 14px; border-radius:10px; border:1px solid #374151; background:#0b1220; color:#e5e7eb; }
+    input::placeholder { color:#9ca3af; }
+    .row { display:grid; grid-template-columns: 1fr 1fr; gap:16px; }
+    .actions { margin-top: 18px; }
+    button { background:#2563eb; color:white; padding:12px 16px; border:none; border-radius:10px; font-weight:600; cursor:pointer; }
+    button:hover { background:#1d4ed8; }
+    .hint { color:#94a3b8; font-size: 12px; }
+    .flash { background:#7c2d12; padding:10px 12px; border-radius:8px; margin-bottom: 12px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <h1>Carousell Web Scraper</h1>
+      {% with messages = get_flashed_messages() %}
+        {% if messages %}
+          <div class="flash">{{ messages[0] }}</div>
+        {% endif %}
+      {% endwith %}
+      <form method="post" action="{{ url_for('run_scrape') }}">
+        <label for="item">Item</label>
+        <input id="item" name="item" placeholder="e.g. baby chair" value="baby chair" />
+
+        <div class="row">
+          <div>
+            <label for="condition">Condition</label>
+            <select id="condition" name="condition">
+              <option value="3" selected>Brand new (3)</option>
+              <option value="4">Like new (4)</option>
+              <option value="7">Lightly used (7)</option>
+              <option value="5">Well used (5)</option>
+              <option value="6">Heavily used (6)</option>
+            </select>
+            <div class="hint">Maps to layered_condition</div>
+          </div>
+          <div>
+            <label for="sort">Sort By</label>
+            <select id="sort" name="sort">
+              <option value="1">Best Match (1)</option>
+              <option value="3" selected>Recent (3)</option>
+              <option value="5">Price - High to Low (5)</option>
+              <option value="4">Price - Low to High (4)</option>
+              <option value="6">Nearby (6)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label for="min_price">Min Price</label>
+            <input id="min_price" name="min_price" type="number" min="0" step="1" value="0" />
+          </div>
+          <div>
+            <label for="max_price">Max Price</label>
+            <input id="max_price" name="max_price" type="number" min="0" step="1" value="150" />
+          </div>
+        </div>
+
+        <div class="actions">
+          <button type="submit">Run Scraper</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Carousell Web Scraper</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <h1>Carousell Web Scraper</h1>
+      <form id="scrape-form">
+        <label for="item">Item</label>
+        <input id="item" name="item" placeholder="e.g. baby chair" value="baby chair" />
+
+        <div class="row">
+          <div>
+            <label for="condition">Condition</label>
+            <select id="condition" name="condition">
+              <option value="3" selected>Brand new (3)</option>
+              <option value="4">Like new (4)</option>
+              <option value="7">Lightly used (7)</option>
+              <option value="5">Well used (5)</option>
+              <option value="6">Heavily used (6)</option>
+            </select>
+            <div class="hint">Maps to layered_condition</div>
+          </div>
+          <div>
+            <label for="sort">Sort By</label>
+            <select id="sort" name="sort">
+              <option value="1">Best Match (1)</option>
+              <option value="3" selected>Recent (3)</option>
+              <option value="5">Price - High to Low (5)</option>
+              <option value="4">Price - Low to High (4)</option>
+              <option value="6">Nearby (6)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label for="min_price">Min Price</label>
+            <input id="min_price" name="min_price" type="number" min="0" step="1" value="0" />
+          </div>
+          <div>
+            <label for="max_price">Max Price</label>
+            <input id="max_price" name="max_price" type="number" min="0" step="1" value="150" />
+          </div>
+        </div>
+
+        <div class="actions">
+          <button type="submit">Run Scraper</button>
+        </div>
+      </form>
+
+      <div id="result" class="hidden">
+        <div class="meta">Query URL: <a id="query_url" href="#" target="_blank"></a></div>
+        <div class="meta">Items scraped: <strong id="count"></strong></div>
+        <div class="actions">
+          <a class="button" id="download_csv" href="#" download>Download CSV</a>
+        </div>
+        <div style="margin-top:14px">
+          <img id="screenshot" alt="Search Screenshot" />
+        </div>
+      </div>
+
+      <div id="error" class="flash hidden"></div>
+    </div>
+  </div>
+  <script src="/main.js"></script>
+</body>
+</html>
