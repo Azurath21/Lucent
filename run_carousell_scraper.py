@@ -103,13 +103,22 @@ class CarousellScraper(object):
 
         # Selenium 4-compatible driver initialization
         chrome_options = Options()
-        if headless:
+        # Auto-enable headless in containers / non-GUI envs
+        auto_headless = (
+            headless or
+            os.environ.get('HEADLESS', '').lower() == 'true' or
+            not os.environ.get('DISPLAY') or
+            os.environ.get('RENDER') is not None
+        )
+        if auto_headless:
             chrome_options.add_argument('--headless=new')
             chrome_options.add_argument('--disable-gpu')
             chrome_options.add_argument('--window-size=1280,1024')
         # Recommended stability flags
         chrome_options.add_argument('--no-sandbox')
         chrome_options.add_argument('--disable-dev-shm-usage')
+        chrome_options.add_argument('--disable-software-rasterizer')
+        chrome_options.add_argument('--remote-debugging-port=9222')
         chrome_options.add_argument('--lang=en-US')
         # Start minimized/off-screen to avoid popping up while not being headless
         chrome_options.add_argument('--start-minimized')

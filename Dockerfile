@@ -15,11 +15,16 @@ RUN apt-get update && apt-get install -y \
     libdrm2 \
     libgbm1 \
     libgtk-3-0 \
+    libgdk-pixbuf-2.0-0 \
     libnss3 \
+    libxkbcommon0 \
     libxcomposite1 \
     libxdamage1 \
     libxfixes3 \
+    libxshmfence1 \
     libxrandr2 \
+    libu2f-udev \
+    libvulkan1 \
     xdg-utils \
   && rm -rf /var/lib/apt/lists/*
 
