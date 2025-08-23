@@ -6,6 +6,7 @@ import time
 from urllib.request import urlopen, Request
 from urllib.parse import quote
 from typing import Optional
+import requests
 
 from bs4 import BeautifulSoup as bs
 from selenium import webdriver
@@ -325,18 +326,36 @@ class CarousellScraper(object):
             try:
                 base_items = item.find_all('a')
                 if len(base_items) > 1:
-                    # seller, seller's page, date time
+                    # seller, seller's page
                     base_items01 = base_items[0]
                     seller = base_items01.find_all('p')[0].text if base_items01.find_all('p') else ''
                     seller_link = self.shorten_url(self.base_url + base_items01.get('href', ''))
-                    date = base_items01.find_all('p')[-1].text if base_items01.find_all('p') else ''
-                    date = self.return_date(date)
 
+                    # item link and basic fields
                     base_items02 = base_items[1]
                     item_link = self.shorten_url(self.base_url + base_items02.get('href', ''))
                     ps = base_items02.find_all('p')
                     title = ps[0].text if len(ps) > 0 else ''
                     price = ps[1].text if len(ps) > 1 else ''
+
+                    # date time (prefer card: look around the card DOM; fallback to item page)
+                    date = ''
+                    try:
+                        date = self.find_relative_date_near(item)
+                    except Exception:
+                        date = ''
+                    if not date:
+                        # Try legacy location on seller block
+                        try:
+                            date = base_items01.find_all('p')[-1].get_text(" ", strip=True)
+                        except Exception:
+                            date = ''
+                    if not date:
+                        try:
+                            date = self.extract_item_date(item_link)
+                        except Exception:
+                            date = ''
+                    date = self.return_date(date)
 
                     seller_rating = '' if self.fast else (self.extract_item_seller_ratings(seller_link) if seller_link else '')
 
@@ -367,6 +386,18 @@ class CarousellScraper(object):
                         continue
                     # Resolve absolute link
                     link = href if href.startswith('http') else (self.base_url + href)
+                    # Try to find relative date near the anchor/card first
+                    date_text = ''
+                    try:
+                        date_text = self.find_relative_date_near(a)
+                    except Exception:
+                        date_text = ''
+                    if not date_text:
+                        # Fallback: fetch from item detail page (short timeout)
+                        try:
+                            date_text = self.extract_item_date(link)
+                        except Exception:
+                            date_text = ''
                     # Price: look up to 2 levels of parents for S$ pattern
                     price_text = ''
                     try:
@@ -388,7 +419,7 @@ class CarousellScraper(object):
                     sellers.append('')
                     seller_links.append('')
                     seller_ratings.append('')
-                    dates.append('')
+                    dates.append(self.return_date(date_text))
 
                     if len(titles) >= 100:
                         break
@@ -424,22 +455,126 @@ class CarousellScraper(object):
     def return_date(self, d: str) -> str:
         # Returns posting date (YYYY-mm-dd) or original string if unknown
         try:
-            if 'hour' in d:
-                hour = int(re.sub(r"[^0-9]", "", d))
-                t = datetime.now() - timedelta(hours=hour)
-                return t.strftime('%Y-%m-%d')
-            elif 'day' in d:
-                day = int(re.sub(r"[^^0-9]", "", d))
-                t = datetime.now() - timedelta(days=day)
-                return t.strftime('%Y-%m-%d')
-            elif 'minute' in d:
-                minute = int(re.sub(r"[^^0-9]", "", d))
-                t = datetime.now() - timedelta(minutes=minute)
-                return t.strftime('%Y-%m-%d')
-            else:
-                return d
+            s = (d or '').strip()
+            if not s:
+                return s
+            low = s.lower()
+            now = datetime.now()
+            # Absolute ISO-like date in page
+            m_abs = re.search(r"(20\d{2})[-/](\d{1,2})[-/](\d{1,2})", s)
+            if m_abs:
+                y, mo, da = map(int, m_abs.groups())
+                return datetime(y, mo, da).strftime('%Y-%m-%d')
+
+            if 'minute' in low:
+                minute = int(re.sub(r"[^0-9]", "", low) or '0')
+                return (now - timedelta(minutes=minute)).strftime('%Y-%m-%d')
+            if 'hour' in low:
+                hour = int(re.sub(r"[^0-9]", "", low) or '0')
+                return (now - timedelta(hours=hour)).strftime('%Y-%m-%d')
+            if 'yesterday' in low:
+                return (now - timedelta(days=1)).strftime('%Y-%m-%d')
+            if 'today' in low:
+                return now.strftime('%Y-%m-%d')
+            if 'week' in low:
+                wk = int(re.sub(r"[^0-9]", "", low) or '1')
+                return (now - timedelta(days=7 * wk)).strftime('%Y-%m-%d')
+            if 'month' in low:
+                mo = int(re.sub(r"[^0-9]", "", low) or '1')
+                return (now - timedelta(days=30 * mo)).strftime('%Y-%m-%d')
+            if 'year' in low:
+                yr = int(re.sub(r"[^0-9]", "", low) or '1')
+                return (now - timedelta(days=365 * yr)).strftime('%Y-%m-%d')
+            if 'day' in low:
+                day = int(re.sub(r"[^0-9]", "", low) or '0')
+                return (now - timedelta(days=day)).strftime('%Y-%m-%d')
+            return s
         except Exception:
             return d
+
+    def find_relative_date_near(self, node) -> str:
+        """Search within the given node and limited ancestors/descendants for relative date text
+        like '3 days ago', 'Yesterday', 'Today'. Returns the raw text if found, else ''.
+        """
+        try:
+            if not node:
+                return ''
+            patt = re.compile(r"\b(\d+\s+(?:minute|hour|day|week|month|year)s?\s+ago|yesterday|today)\b", re.IGNORECASE)
+
+            # 1) Search within the node itself (deep)
+            txt = node.get_text(" ", strip=True)
+            m = patt.search(txt)
+            if m:
+                return m.group(1)
+
+            # 2) Search children <p> specifically
+            for p in node.find_all('p'):
+                t = p.get_text(" ", strip=True)
+                m = patt.search(t)
+                if m:
+                    return m.group(1)
+
+            # 3) Climb up to 3 parents and search their immediate text and <p> children
+            parent = node
+            for _ in range(3):
+                parent = parent.find_parent()
+                if not parent:
+                    break
+                t = parent.get_text(" ", strip=True)
+                m = patt.search(t)
+                if m:
+                    return m.group(1)
+                for p in parent.find_all('p'):
+                    tt = p.get_text(" ", strip=True)
+                    m2 = patt.search(tt)
+                    if m2:
+                        return m2.group(1)
+        except Exception:
+            return ''
+        return ''
+
+    def extract_item_date(self, item_url: str) -> str:
+        """Fetch item detail page and extract the 'Listed ...' text, returning a normalized string.
+        Returns empty string if not found or on error.
+        """
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
+            'Accept-Language': 'en-US,en;q=0.9',
+        }
+        try:
+            # Use requests with small retry loop to avoid transient SSL issues
+            html = ''
+            for i in range(2):
+                try:
+                    r = requests.get(item_url, headers=headers, timeout=6)
+                    if r.ok:
+                        html = r.text
+                        break
+                except requests.RequestException:
+                    time.sleep(0.5)
+                    continue
+            if not html:
+                return ''
+            soup = bs(html, 'lxml')
+            # Try to find explicit 'Listed ...' phrase first
+            full_text = soup.get_text(" ", strip=True)
+            m = re.search(r"Listed\s+(?:on\s+)?(.*?)(?:\s+by\b|$)", full_text, re.IGNORECASE)
+            if m:
+                return m.group(1).strip()
+            # Try time tag
+            time_el = soup.find('time')
+            if time_el:
+                if time_el.get('datetime'):
+                    return time_el.get('datetime').strip()
+                if time_el.text:
+                    return time_el.text.strip()
+            # Look for meta tags that may carry date
+            meta = soup.find('meta', attrs={'property': 'article:published_time'}) or soup.find('meta', attrs={'itemprop': 'datePublished'})
+            if meta and meta.get('content'):
+                return meta.get('content').strip()
+        except Exception:
+            return ''
+        return ''
 
     def extract_item_seller_ratings(self, seller_url: str) -> str:
         headers = {'User-Agent': 'Chrome/24.0.1312.27'}
