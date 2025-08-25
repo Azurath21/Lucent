@@ -97,7 +97,28 @@ def predict_price(csv_path: str, target_days: int):
     ]
     
     if len(df) < 3:
-        return {"ok": False, "error": "Insufficient valid data for prediction"}
+        # Insufficient data for ML prediction - return highest relevance item
+        highest_relevance_item = df.loc[df['Relevance_Weight'].idxmax()]
+        return {
+            "ok": True,
+            "predicted_price": float(highest_relevance_item['price_numeric']),
+            "target_days": int(highest_relevance_item['days_to_sell']),
+            "data_points": len(df),
+            "model_accuracy_mae": "N/A - Insufficient data",
+            "fallback_reason": "Used highest relevance item due to insufficient data for ML prediction",
+            "price_stats": {
+                'min_price': float(df['price_numeric'].min()),
+                'max_price': float(df['price_numeric'].max()),
+                'avg_price': float(df['price_numeric'].mean()),
+                'median_price': float(df['price_numeric'].median())
+            },
+            "time_stats": {
+                'min_days': int(df['days_to_sell'].min()),
+                'max_days': int(df['days_to_sell'].max()),
+                'avg_days': float(df['days_to_sell'].mean())
+            },
+            "avg_relevance_used": round(float(highest_relevance_item['Relevance_Weight']), 3)
+        }
     
     # Features: Relevance_Weight, days_to_sell
     # Target: price_numeric
