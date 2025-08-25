@@ -118,7 +118,7 @@ class CarousellScraper(object):
         chrome_options.add_argument('--no-sandbox')
         chrome_options.add_argument('--disable-dev-shm-usage')
         chrome_options.add_argument('--disable-software-rasterizer')
-        chrome_options.add_argument('--remote-debugging-port=9222')
+        # Avoid setting a fixed remote debugging port to prevent conflicts across runs
         chrome_options.add_argument('--disable-gpu')  # also disable when non-headless to avoid context errors
         chrome_options.add_argument('--disable-extensions')
         chrome_options.add_argument('--disable-background-networking')
@@ -307,13 +307,10 @@ class CarousellScraper(object):
         html = self.driver.page_source
         soup = bs(html, 'lxml')
 
-        sellers = []
-        seller_links = []
         dates = []
         titles = []
-        item_links = []
         prices = []
-        seller_ratings = []
+        
 
         # Try original structure first but guard against None
         try:
@@ -325,11 +322,6 @@ class CarousellScraper(object):
             try:
                 base_items = item.find_all('a')
                 if len(base_items) > 1:
-                    # seller, seller's page
-                    base_items01 = base_items[0]
-                    seller = base_items01.find_all('p')[0].text if base_items01.find_all('p') else ''
-                    seller_link = self.shorten_url(self.base_url + base_items01.get('href', ''))
-
                     # item link and basic fields
                     base_items02 = base_items[1]
                     item_link = self.shorten_url(self.base_url + base_items02.get('href', ''))
@@ -344,28 +336,17 @@ class CarousellScraper(object):
                     except Exception:
                         date = ''
                     if not date:
-                        # Try legacy location on seller block
-                        try:
-                            date = base_items01.find_all('p')[-1].get_text(" ", strip=True)
-                        except Exception:
-                            date = ''
-                    if not date:
                         try:
                             date = self.extract_item_date(item_link)
                         except Exception:
                             date = ''
                     date = self.return_date(date)
 
-                    seller_rating = '' if self.fast else (self.extract_item_seller_ratings(seller_link) if seller_link else '')
-
-                    if title and re.search(r'(?i)(baby.*chair)', title) is not None:
-                        sellers.append(seller)
-                        seller_links.append(seller_link)
+                    # Collect all extracted items (do not hard-filter by a specific keyword)
+                    if title:
                         dates.append(date)
-                        item_links.append(item_link)
                         titles.append(title)
                         prices.append(price)
-                        seller_ratings.append(seller_rating)
             except Exception:
                 continue
 
@@ -413,11 +394,7 @@ class CarousellScraper(object):
                         pass
 
                     titles.append(text)
-                    item_links.append(link)
                     prices.append(price_text)
-                    sellers.append('')
-                    seller_links.append('')
-                    seller_ratings.append('')
                     dates.append(self.return_date(date_text))
 
                     if len(titles) >= 100:
@@ -426,24 +403,21 @@ class CarousellScraper(object):
                 pass
 
         print(
-            'sellers:', len(sellers),
-            ', seller_links:', len(seller_links),
-            ', dates:', len(dates),
+            'dates:', len(dates),
             ', titles:', len(titles),
-            ', title links:', len(item_links),
-            ', prices:', len(prices),
-            ', seller_ratings:', len(seller_ratings)
+            ', prices:', len(prices)
         )
 
         # Write to csv
-        dest_path = os.path.join('processed', f"{self.curdatetime}_Carousell_Search_{self.item}.csv").replace(' ', '')
+        # Sanitize item for filename: keep alphanumerics only to avoid issues like apostrophes
+        safe_item = re.sub(r'[^A-Za-z0-9]+', '', self.item)
+        dest_path = os.path.join('processed', f"{self.curdatetime}_Carousell_Search_{safe_item}.csv")
         with open(dest_path, 'w+', encoding='utf-8', newline='') as csvFile:
             writer = csv.writer(csvFile)
-            writer.writerow(('Date', 'Item', 'Item_Link', 'Price', 'Seller', 'Seller_Link', 'Seller_Ratings'))
+            writer.writerow(('Date', 'Item', 'Price'))
             for i in range(len(dates)):
                 writer.writerow((
-                    dates[i].strip(), titles[i].strip(), item_links[i].strip(), prices[i].strip(),
-                    sellers[i].strip(), seller_links[i].strip(), seller_ratings[i].strip()
+                    dates[i].strip(), titles[i].strip(), prices[i].strip()
                 ))
         print('Saved:', dest_path)
         return {
@@ -575,23 +549,7 @@ class CarousellScraper(object):
             return ''
         return ''
 
-    def extract_item_seller_ratings(self, seller_url: str) -> str:
-        headers = {'User-Agent': 'Chrome/24.0.1312.27'}
-        request = Request(seller_url, headers=headers)
-        html = urlopen(request).read()
-        soup = bs(html, 'lxml')
-
-        NA_RATINGS = 'No ratings yet'
-        contents = soup.find_all('p')
-        seller_rating = ''
-        for cont in contents:
-            text = cont.text.strip()
-            if NA_RATINGS in text:
-                seller_rating = text
-                break
-            if re.match(r'^\d+\.\d+$', text):
-                seller_rating = text
-        return seller_rating
+    
 
     def shorten_url(self, url: str) -> str:
         pos = url.find('?')

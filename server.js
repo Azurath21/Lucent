@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
@@ -10,6 +11,9 @@ const BASE_DIR = __dirname;
 const WEB_DIR = path.join(BASE_DIR, 'web');
 const RAW_DIR = path.join(BASE_DIR, 'raw');
 const PROCESSED_DIR = path.join(BASE_DIR, 'processed');
+
+// Progress tracking store
+const progressStore = {};
 
 app.use(express.json({ limit: '1mb' }));
 app.use(express.static(WEB_DIR));
@@ -51,79 +55,187 @@ function runPythonJson(args) {
     child.on('error', (e) => reject(new Error(`Failed to start Python: ${e.message}`)));
     child.on('close', (code) => {
       let jsonStr = (out || '').trim();
+      
+      // Try to find the last complete JSON object
       const lastBrace = jsonStr.lastIndexOf('{');
-      if (lastBrace > 0) jsonStr = jsonStr.slice(lastBrace);
+      if (lastBrace >= 0) {
+        // Extract from the last opening brace to the end
+        const candidate = jsonStr.slice(lastBrace);
+        try {
+          // Test if this is valid JSON
+          JSON.parse(candidate);
+          jsonStr = candidate;
+        } catch (e) {
+          // If extraction failed, use the full output
+          jsonStr = jsonStr;
+        }
+      }
+      
       try {
         const data = JSON.parse(jsonStr || '{}');
         if (data && data.ok) return resolve(data);
         return reject(new Error(data && data.error ? data.error : `Python exited with code ${code}. stderr=${err.slice(-400)}`));
       } catch (e) {
-        return reject(new Error(`Failed to parse JSON. code=${code}. stderr=${err.slice(-400)}`));
+        return reject(new Error(`Failed to parse JSON. code=${code}. stdout=${out.slice(-200)}. stderr=${err.slice(-400)}`));
       }
     });
   });
 }
 
+// Start run endpoint - returns run ID immediately
+app.post('/api/start-run', async (req, res) => {
+  const runId = `run_${Date.now()}`;
+  progressStore[runId] = { status: 'starting', step: 0, total: 5, message: 'Initializing...' };
+  res.json({ ok: true, run_id: runId });
+});
+
+// Main processing endpoint
 app.post('/api/run', async (req, res) => {
   try {
-    const { item = 'baby chair', brand = '', model = '', notes = '', condition = '3', min_price = '0', headless = false, delay = 15 } = req.body || {};
-    // All sort options to iterate: Best(1), Recent(3), High->Low(5), Low->High(4), Nearby(6)
-    const sorts = ['1', '3', '5', '4', '6'];
+    const { item, brand, model, notes, condition, min_price, target_days, use_gemini, run_id } = req.body;
+    const runId = run_id || `run_${Date.now()}`;
+    const runDir = path.join(PROCESSED_DIR, runId);
+    fs.mkdirSync(runDir, { recursive: true });
 
-    // Ensure processed dir exists
-    try { fs.mkdirSync(PROCESSED_DIR, { recursive: true }); } catch (_) {}
-
-    const csvPaths = [];
     let lastQueryUrl = '';
     let lastScreenshotName = '';
+    const csvPaths = [];
 
-    for (const sort of sorts) {
+    // Store progress for this run
+    progressStore[runId] = { status: 'scraping', step: 0, total: 5, message: 'Starting scrape...' };
+
+    // Scrape with 5 different sort metrics
+    const sortOptions = ['3', '4', '5', '6', '7']; // Different sort metrics
+    for (let i = 0; i < sortOptions.length; i++) {
+      const sortValue = sortOptions[i];
+      progressStore[runId] = { 
+        status: 'scraping', 
+        step: i + 1, 
+        total: 5, 
+        message: `Scraping with sort method ${i + 1} of 5...` 
+      };
+      
       const args = [
         path.join(BASE_DIR, 'scrape_cli.py'),
         '--item', String(item),
-        '--condition', String(condition),
-        '--min_price', String(min_price),
-        '--sort', String(sort),
-        '--delay', String(delay),
+        '--brand', String(brand || ''),
+        '--model', String(model || ''),
+        '--notes', String(notes || ''),
+        '--condition', String(condition || ''),
+        '--min_price', String(min_price || ''),
+        '--sort', sortValue,
       ];
-      if (String(brand).trim()) args.push('--brand', String(brand));
-      if (String(model).trim()) args.push('--model', String(model));
-      if (String(notes).trim()) args.push('--notes', String(notes));
-      if (headless) args.push('--headless');
-
       const data = await runPythonJson(args);
       if (data.query_url) lastQueryUrl = data.query_url;
       if (data.screenshot_path) lastScreenshotName = path.basename(data.screenshot_path);
-      if (data.csv_path) csvPaths.push(String(data.csv_path));
+      if (data.csv_path) {
+        const src = String(data.csv_path);
+        const dest = path.join(runDir, path.basename(src));
+        try {
+          fs.renameSync(src, dest);
+          csvPaths.push(dest);
+        } catch (e) {
+          // If move fails, fallback to using original path
+          csvPaths.push(src);
+        }
+      }
     }
 
     // Merge CSVs via merge_csvs.py
+    progressStore[runId] = { 
+      status: 'merging', 
+      step: 1, 
+      total: 1, 
+      message: 'Merging CSV files...' 
+    };
+    
     const itemSlug = [String(item), String(brand), String(model), String(notes)].filter(Boolean).join(' ').trim() || 'items';
     const mergeArgs = [
       path.join(BASE_DIR, 'merge_csvs.py'),
-      PROCESSED_DIR,
+      runDir,
       itemSlug,
       ...csvPaths,
     ];
     const merged = await runPythonJson(mergeArgs);
     const combinedName = path.basename(merged.csv_path || '');
 
+    // Always run Gemini scoring for price prediction
+    progressStore[runId] = { 
+      status: 'scoring', 
+      step: 0, 
+      total: 1, 
+      message: 'Starting AI relevance scoring...' 
+    };
+    
+    const queryText = [String(item), String(brand), String(model), String(notes)].filter(Boolean).join(' ').trim();
+    const key = String(process.env.GOOGLE_API_KEY || '');
+    if (!key) {
+      throw new Error('GOOGLE_API_KEY is required for price prediction.');
+    }
+    
+    // Score the CSV
+    const weightArgs = [
+      path.join(BASE_DIR, 'csv_score.py'),
+      path.join(runDir, combinedName),
+      runDir,
+      queryText,
+      '--batch-size=30',
+    ];
+    const weightedResp = await runPythonJson(weightArgs);
+    const weightedCsvPath = weightedResp.csv_path;
+    
+    // Run price prediction
+    progressStore[runId] = { 
+      status: 'predicting', 
+      step: 1, 
+      total: 1, 
+      message: 'Running price prediction model...' 
+    };
+    
+    const predictionArgs = [
+      path.join(BASE_DIR, 'price_predictor.py'),
+      weightedCsvPath,
+      String(target_days),
+    ];
+    const prediction = await runPythonJson(predictionArgs);
+
+    // Clear progress when done
+    delete progressStore[runId];
+
     return res.json({
       ok: true,
-      query_url: lastQueryUrl,
-      count: merged.count || 0,
-      csv_name: combinedName,
-      screenshot_name: lastScreenshotName,
-      download_csv_url: combinedName ? `/download/processed/${combinedName}` : '',
-      view_screenshot_url: lastScreenshotName ? `/view/raw/${lastScreenshotName}` : '',
+      predicted_price: prediction.predicted_price,
+      target_days: prediction.target_days,
+      data_points: prediction.data_points,
+      model_accuracy: prediction.model_accuracy_mae,
+      price_stats: prediction.price_stats,
+      time_stats: prediction.time_stats,
+      run_id: runId,
     });
   } catch (e) {
     return res.status(500).json({ ok: false, error: e.message || String(e) });
   }
 });
 
+// Progress endpoint
+app.get('/api/progress/:runId', (req, res) => {
+  const { runId } = req.params;
+  const progress = progressStore[runId];
+  if (!progress) {
+    return res.json({ status: 'completed', message: 'Process completed' });
+  }
+  res.json(progress);
+});
+
 app.get('/download/processed/:filename', (req, res) => {
   const fp = path.join(PROCESSED_DIR, req.params.filename);
+  res.download(fp);
+});
+
+// New: nested route for per-run outputs
+app.get('/download/processed/run/:runId/:filename', (req, res) => {
+  const { runId, filename } = req.params;
+  const fp = path.join(PROCESSED_DIR, runId, filename);
   res.download(fp);
 });
 

@@ -5,8 +5,8 @@ from datetime import datetime
 
 """
 Usage: python merge_csvs.py <output_dir> <item_slug> <csv1> <csv2> ...
-- Merges all CSVs with header: Date, Item, Item_Link, Price, Seller, Seller_Link, Seller_Ratings
-- Deduplicates by Item_Link.
+- Merges CSVs with header: Date, Item, Price
+- Deduplicates by the (Date, Item, Price) tuple.
 - Writes output to <output_dir>/<timestamp>_Combined_<item_slug>.csv
 - Prints JSON to stdout: {"ok": true, "csv_path": "...", "count": N}
 """
@@ -32,7 +32,15 @@ def main():
 
         seen = set()
         rows = []
-        header = ['Date', 'Item', 'Item_Link', 'Price', 'Seller', 'Seller_Link', 'Seller_Ratings']
+        header = ['Date', 'Item', 'Price']
+        legacy_header = ['Date', 'Item', 'Item_Link', 'Price', 'Seller', 'Seller_Link', 'Seller_Ratings']
+
+        def normalize_row(row):
+            # Return (Date, Item, Price) from either 3-col or legacy 7-col rows
+            if len(row) >= 7:
+                return [row[0], row[1], row[3]]
+            # fallback to first 3 columns
+            return [row[0] if len(row) > 0 else '', row[1] if len(row) > 1 else '', row[2] if len(row) > 2 else '']
         for p in csv_paths:
             if not p or not os.path.exists(p):
                 continue
@@ -44,25 +52,27 @@ def main():
                     first = None
                 if first is None:
                     continue
-                # If the first row matches header (case-insensitive by position), skip it
-                if [c.strip().lower() for c in first] != [c.lower() for c in header]:
+                # If the first row matches known headers (case-insensitive), skip it
+                first_lc = [c.strip().lower() for c in first]
+                if first_lc != [c.lower() for c in header] and first_lc != [c.lower() for c in legacy_header]:
                     # not a header, treat as data row
-                    row = first
+                    row = normalize_row(first)
                     if len(row) >= 3:
-                        key = row[2].strip()
-                        if key and key not in seen:
+                        key = (row[0].strip(), row[1].strip(), row[2].strip())
+                        if key not in seen:
                             seen.add(key)
-                            rows.append(row)
+                            rows.append([row[0], row[1], row[2]])
                 # read rest
                 for row in reader:
                     if not row:
                         continue
+                    row = normalize_row(row)
                     if len(row) < 3:
                         continue
-                    key = row[2].strip()  # Item_Link
-                    if key and key not in seen:
+                    key = (row[0].strip(), row[1].strip(), row[2].strip())
+                    if key not in seen:
                         seen.add(key)
-                        rows.append(row)
+                        rows.append([row[0], row[1], row[2]])
 
         # Write output
         with open(out_path, 'w', encoding='utf-8', newline='') as f:

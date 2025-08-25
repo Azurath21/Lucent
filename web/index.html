@@ -52,26 +52,50 @@
           <div>
             <label for="min_price">Min Price</label>
             <input id="min_price" name="min_price" type="number" min="0" step="1" value="0" />
+            <div class="hint">Optional.</div>
+          </div>
+          <div>
+            <label for="target_days">Target Days to Sell</label>
+            <input id="target_days" name="target_days" type="number" min="1" step="1" value="30" required />
+            <div class="hint">Required. How many days to sell your item.</div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label><input type="checkbox" id="use_gemini" name="use_gemini" /> Use Gemini to weight relevance</label>
+            <div class="hint">Uses GOOGLE_API_KEY from the environment.</div>
           </div>
         </div>
 
         <div class="actions">
-          <button type="submit">Run Scraper</button>
+          <button type="submit">Get Price Prediction</button>
         </div>
       </form>
 
       <div id="result" class="hidden">
-        <div class="meta">Query URL: <a id="query_url" href="#" target="_blank"></a></div>
-        <div class="meta">Items scraped: <strong id="count"></strong></div>
-        <div class="actions">
-          <a class="button" id="download_csv" href="#" download>Download CSV</a>
-        </div>
-        <div style="margin-top:14px">
-          <img id="screenshot" alt="Search Screenshot" />
+        <div class="prediction-result">
+          <h2>Price Prediction</h2>
+          <div class="price-display">
+            <span class="price-label">Recommended Price:</span>
+            <span class="price-value" id="predicted_price">S$0</span>
+          </div>
+          <div class="prediction-details">
+            <div class="detail-item">Target timeframe: <strong id="target_timeframe">0 days</strong></div>
+            <div class="detail-item">Based on <strong id="data_points">0</strong> similar listings</div>
+            <div class="detail-item">Model accuracy: <strong id="model_accuracy">N/A</strong></div>
+          </div>
         </div>
       </div>
 
       <div id="error" class="flash hidden"></div>
+    </div>
+  </div>
+  <!-- Loading overlay -->
+  <div id="loading" class="loading hidden" aria-hidden="true">
+    <div class="loading-inner">
+      <div class="spinner" aria-label="Loading"></div>
+      <div class="loading-text">Running scraper… This may take up to a minute.</div>
     </div>
   </div>
   <script src="/main.js"></script>

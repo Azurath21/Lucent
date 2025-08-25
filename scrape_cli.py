@@ -33,16 +33,17 @@ def main():
         search_term_parts.append(args.notes.strip())
     search_term = " ".join(search_term_parts)
 
-    scraper = CarousellScraper(
-        item=search_term,
-        condition=args.condition,
-        min_price=args.min_price,
-        sort=args.sort,
-        headless=args.headless,
-        delay=args.delay,
-        fast=args.fast,
-    )
+    scraper = None
     try:
+        scraper = CarousellScraper(
+            item=search_term,
+            condition=args.condition,
+            min_price=args.min_price,
+            sort=args.sort,
+            headless=args.headless,
+            delay=args.delay,
+            fast=args.fast,
+        )
         result = scraper.run_and_save()
         out = {
             "ok": True,
@@ -57,7 +58,8 @@ def main():
         sys.exit(1)
     finally:
         try:
-            scraper.quit()
+            if scraper:
+                scraper.quit()
         except Exception:
             pass
 

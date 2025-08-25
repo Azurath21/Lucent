@@ -102,3 +102,7 @@ modules.xml
 
 # Sonarlint plugin
 .idea/sonarlint
+
+# Local environment variables (keep secrets out of git)
+.env
+node_modules
