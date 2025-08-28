@@ -4,8 +4,19 @@ const errorBox = document.getElementById('error');
 const loading = document.getElementById('loading');
 const steps = document.querySelectorAll('.progress .step');
 const pages = document.querySelectorAll('.page');
+const titlescreen = document.getElementById('titlescreen');
 
 let currentPage = 0;
+
+// Titlescreen fade out after 2 seconds
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    titlescreen.classList.add('fade-out');
+    setTimeout(() => {
+      titlescreen.style.display = 'none';
+    }, 500); // Wait for fade transition to complete
+  }, 2000);
+});
 
 function show(el) { el.classList.remove('hidden'); }
 function hide(el) { el.classList.add('hidden'); }

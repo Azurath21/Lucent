@@ -1,14 +1,23 @@
 body { font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; background:#2d2d2d; color:#2d2d2d; -webkit-text-size-adjust: 100%; }
 .container { max-width: 900px; margin: 2vw auto; padding: min(24px, 4vw); }
 .card { background:#ffffff; border:2px solid #dc2626; border-radius: 12px; padding: min(24px, 4vw); box-shadow: 0 10px 30px rgba(220,38,38,.15); }
-h1 { margin-top:0; font-size: clamp(24px, 8vw, 48px); font-weight:700; text-align:center; line-height: 1.1; }
+
+/* Titlescreen styles */
+.titlescreen { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #2d2d2d; display: flex; align-items: center; justify-content: center; z-index: 9999; transition: opacity 0.5s ease-out; }
+.titlescreen.fade-out { opacity: 0; pointer-events: none; }
+.titlescreen-image { max-width: 90vw; max-height: 90vh; object-fit: contain; }
+
+/* Title with logo styles */
+.title-container { display: flex; align-items: center; justify-content: center; gap: min(8px, 2vw); margin-bottom: min(20px, 4vw); flex-wrap: wrap; }
+.logo { height: clamp(50px, 12.5vw, 100px); width: auto; object-fit: contain; border: none; outline: none; }
+h1 { margin: 0; font-size: clamp(24px, 8vw, 48px); font-weight:700; text-align:center; line-height: 1.1; }
 .title-black { color: #000000; }
 .title-red { color: #dc2626; }
 h2 { color:#dc2626; font-size: clamp(16px, 3vw, 18px); font-weight:600; margin: 0 0 16px 0; border-bottom: 2px solid #dc2626; padding-bottom: 8px; }
 #page-1 h2 { text-align: center; }
 label { display:block; font-weight:600; margin: 14px 0 6px; color:#4a4a4a; font-size: clamp(14px, 2.5vw, 16px); }
 input, select { width:100%; padding: min(12px, 2vw) min(14px, 3vw); border-radius:8px; border:2px solid #9ca3af; background:#ffffff; color:#2d2d2d; box-sizing:border-box; font-size: clamp(14px, 2.5vw, 16px); min-height: 44px; }
-#target_days { font-size: clamp(80px, 20vw, 240px); padding: min(40px, 6vw); text-align: center; font-weight: 600; width: min(400px, 85vw); margin: 0 auto; display: block; box-sizing: border-box; }
+#target_days { font-size: clamp(40px, 15vw, 240px); padding: clamp(20px, 5vw, 40px); text-align: center; font-weight: 600; width: 100%; max-width: none; margin: 0; display: block; box-sizing: border-box; border: 2px solid #9ca3af; border-radius: 8px; }
 input:focus, select:focus { outline:none; border-color:#dc2626; }
 input::placeholder { color:#9ca3af; }
 .row { display:grid; grid-template-columns: 1fr 1fr; gap:24px; align-items: start; }
@@ -30,8 +39,8 @@ img { max-width:100%; border-radius:8px; border:2px solid #9ca3af; }
 .stage { background:#e5e5e5; border:2px solid #dc2626; border-radius: 12px; padding: 20px; margin: 20px 0; }
 
 /* Progress indicator */
-.progress { display:flex; gap: min(8px, 2vw); margin: 12px 0 16px; }
-.progress .step { flex:1; text-align:center; border:2px solid #9ca3af; border-radius:999px; padding: min(8px, 2vw) min(10px, 2.5vw); color:#6b7280; font-weight:600; background:#f3f4f6; cursor:pointer; transition: all 0.2s; font-size: clamp(12px, 2.5vw, 14px); min-height: 44px; display: flex; align-items: center; justify-content: center; touch-action: manipulation; }
+.progress { display:flex; gap: clamp(4px, 1.5vw, 8px); margin: 12px 0 16px; }
+.progress .step { flex:1; text-align:center; border:2px solid #9ca3af; border-radius:999px; padding: clamp(4px, 1vw, 8px) clamp(6px, 1.5vw, 10px); color:#6b7280; font-weight:600; background:#f3f4f6; cursor:pointer; transition: all 0.2s; font-size: clamp(10px, 2vw, 14px); min-height: clamp(36px, 8vw, 44px); display: flex; align-items: center; justify-content: center; touch-action: manipulation; white-space: nowrap; }
 .progress .step.active { border-color:#dc2626; color:#dc2626; background:#ffffff; box-shadow: 0 4px 12px rgba(220,38,38,.08); }
 .progress .step:hover { border-color:#dc2626; }
 
@@ -156,10 +165,9 @@ input:invalid:not(:focus):not(:placeholder-shown), select:invalid:not(:focus) { 
 }
 
 @media (max-width: 480px) {
-  .progress { flex-direction: column; gap: min(8px, 2vw); }
-  .progress .step { min-height: 40px; padding: min(6px, 1.5vw) min(8px, 2vw); }
   .speed-selection { gap: min(12px, 3vw); }
   .nav-button { padding: min(10px, 2.5vw) min(16px, 3.5vw); }
+  .progress .step { font-size: clamp(8px, 1.8vw, 12px); padding: clamp(3px, 0.8vw, 4px) clamp(4px, 1vw, 6px); min-height: clamp(32px, 7vw, 36px); }
 }
 
 /* iOS Safari specific fixes */

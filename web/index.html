@@ -9,9 +9,17 @@
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
+  <!-- Titlescreen overlay -->
+  <div id="titlescreen" class="titlescreen">
+    <img src="/titlescreen.png" alt="Lucent Carousell" class="titlescreen-image">
+  </div>
+  
   <div class="container">
     <div class="card">
-      <h1><span class="title-black">LUCENT</span><br><span class="title-red">carousell</span></h1>
+      <div class="title-container">
+        <img src="/logo.png" alt="Lucent Logo" class="logo">
+        <h1><span class="title-black">LUCENT</span><br><span class="title-red">carousell</span></h1>
+      </div>
       <!-- Stage Progress Indicator -->
       <div class="progress" aria-label="Form progress">
         <div class="step active" data-step="0">1. Details</div>
@@ -74,10 +82,8 @@
         <div class="page" id="page-1">
           <div class="stage">
             <h2>Target Days to Sell</h2>
-            <div class="row">
-              <div>
-                <input id="target_days" name="target_days" type="number" min="1" step="1" value="30" required />
-              </div>
+            <div style="display: flex; justify-content: center;">
+              <input id="target_days" name="target_days" type="number" min="1" step="1" value="30" required />
             </div>
           </div>
           <div class="page-navigation">
