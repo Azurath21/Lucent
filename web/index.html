@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Carousell Web Scraper</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>Lucent Carousell</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/styles.css" />
@@ -11,65 +11,108 @@
 <body>
   <div class="container">
     <div class="card">
-      <h1>Carousell Web Scraper</h1>
+      <h1><span class="title-black">LUCENT</span><br><span class="title-red">carousell</span></h1>
+      <!-- Stage Progress Indicator -->
+      <div class="progress" aria-label="Form progress">
+        <div class="step active" data-step="0">1. Details</div>
+        <div class="step" data-step="1">2. Time</div>
+        <div class="step" data-step="2">3. Mode</div>
+      </div>
+      
       <form id="scrape-form">
-        <label for="item">Item</label>
-        <input id="item" name="item" placeholder="e.g. baby chair" value="baby chair" />
+        <!-- Page 1: Product Details -->
+        <div class="page active" id="page-0">
+          <div class="stage">
+            <h2>Product Details</h2>
+            <div class="row">
+              <!-- Left Side: Item, Brand, Condition -->
+              <div class="side-column">
+                <div>
+                  <label for="item">Item</label>
+                  <input id="item" name="item" placeholder="e.g. baby chair" required />
+                </div>
+                <div>
+                  <label for="brand">Brand</label>
+                  <input id="brand" name="brand" placeholder="e.g. IKEA" />
+                </div>
+                <div>
+                  <label for="condition">Condition</label>
+                  <select id="condition" name="condition">
+                    <option value="3" selected>Brand new (3)</option>
+                    <option value="4">Like new (4)</option>
+                    <option value="7">Lightly used (7)</option>
+                    <option value="5">Well used (5)</option>
+                    <option value="6">Heavily used (6)</option>
+                  </select>
+                </div>
+              </div>
 
-        <div class="row">
-          <div>
-            <label for="brand">Brand</label>
-            <input id="brand" name="brand" placeholder="e.g. IKEA" />
-            <div class="hint">Optional. Appended to the search term.</div>
+              <!-- Right Side: Model, Notes, Min Price -->
+              <div class="side-column">
+                <div>
+                  <label for="model">Model</label>
+                  <input id="model" name="model" placeholder="e.g. Antilop" />
+                </div>
+                <div>
+                  <label for="notes">Notes</label>
+                  <input id="notes" name="notes" placeholder="e.g. foldable, wooden" />
+                </div>
+                <div>
+                  <label for="min_price">Min Price</label>
+                  <input id="min_price" name="min_price" type="number" min="0" step="1" value="0" />
+                </div>
+              </div>
+            </div>
           </div>
-          <div>
-            <label for="model">Model</label>
-            <input id="model" name="model" placeholder="e.g. Antilop" />
-            <div class="hint">Optional. Appended to the search term.</div>
-          </div>
-          <div>
-            <label for="notes">Notes</label>
-            <input id="notes" name="notes" placeholder="e.g. foldable, wooden" />
-            <div class="hint">Optional. Additional keywords.</div>
+          <div class="page-navigation">
+            <div></div>
+            <button type="button" class="nav-button primary" id="next-0">Next</button>
           </div>
         </div>
 
-        <div class="row">
-          <div>
-            <label for="condition">Condition</label>
-            <select id="condition" name="condition">
-              <option value="3" selected>Brand new (3)</option>
-              <option value="4">Like new (4)</option>
-              <option value="7">Lightly used (7)</option>
-              <option value="5">Well used (5)</option>
-              <option value="6">Heavily used (6)</option>
-            </select>
-            <div class="hint">Maps to layered_condition. Sorting is fixed to Recent.</div>
+        <!-- Page 2: Time to Sell -->
+        <div class="page" id="page-1">
+          <div class="stage">
+            <h2>Target Days to Sell</h2>
+            <div class="row">
+              <div>
+                <input id="target_days" name="target_days" type="number" min="1" step="1" value="30" required />
+              </div>
+            </div>
+          </div>
+          <div class="page-navigation">
+            <button type="button" class="nav-button" id="prev-1">Previous</button>
+            <button type="button" class="nav-button primary" id="next-1">Next</button>
           </div>
         </div>
 
-        <div class="row">
-          <div>
-            <label for="min_price">Min Price</label>
-            <input id="min_price" name="min_price" type="number" min="0" step="1" value="0" />
-            <div class="hint">Optional.</div>
+        <!-- Page 3: Mode Selection -->
+        <div class="page" id="page-2">
+          <div class="stage">
+            <h2>Choose Mode</h2>
+            <div class="speed-selection">
+              <div class="speed-option selected" data-speed="normal">
+                <img class="speed-image" src="/car.png" alt="Normal Speed">
+                <div class="speed-label">Normal</div>
+                <div class="speed-description">5 pages</div>
+              </div>
+              <div class="speed-option" data-speed="fast">
+                <img class="speed-image" src="/plane.png" alt="Fast Speed">
+                <div class="speed-label">Fast</div>
+                <div class="speed-description">2 pages</div>
+              </div>
+              <div class="speed-option" data-speed="ultra_fast">
+                <img class="speed-image" src="/rocket.png" alt="Ultra Fast Speed">
+                <div class="speed-label">Ultra Fast</div>
+                <div class="speed-description">1 page</div>
+              </div>
+            </div>
+            <input type="hidden" id="speed_mode" name="speed_mode" value="normal">
           </div>
-          <div>
-            <label for="target_days">Target Days to Sell</label>
-            <input id="target_days" name="target_days" type="number" min="1" step="1" value="30" required />
-            <div class="hint">Required. How many days to sell your item.</div>
+          <div class="page-navigation">
+            <button type="button" class="nav-button" id="prev-2">Previous</button>
+            <button type="submit" class="nav-button primary">Get Price Prediction</button>
           </div>
-        </div>
-
-        <div class="row">
-          <div>
-            <label><input type="checkbox" id="use_gemini" name="use_gemini" /> Use Gemini to weight relevance</label>
-            <div class="hint">Uses GOOGLE_API_KEY from the environment.</div>
-          </div>
-        </div>
-
-        <div class="actions">
-          <button type="submit">Get Price Prediction</button>
         </div>
       </form>
 
@@ -94,7 +137,17 @@
   <!-- Loading overlay -->
   <div id="loading" class="loading hidden" aria-hidden="true">
     <div class="loading-inner">
-      <div class="spinner" aria-label="Loading"></div>
+      <div class="animation-stage">
+        <svg width="120" height="120" viewBox="0 0 437 437" aria-hidden="true">
+          <circle class="bg-circle" cx="218.5" cy="218.5" r="204.20"></circle>
+        </svg>
+        <div class="rotor">
+          <img class="moon" src="/moon.png" alt="Moon">
+          <div class="cam-carrier">
+            <img class="cam-spin" src="/camera.png" alt="Camera">
+          </div>
+        </div>
+      </div>
       <div class="loading-text">Running scraper… This may take up to a minute.</div>
     </div>
   </div>

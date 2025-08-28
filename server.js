@@ -92,8 +92,13 @@ app.post('/api/start-run', async (req, res) => {
 // Main processing endpoint
 app.post('/api/run', async (req, res) => {
   try {
-    const { item, brand, model, notes, condition, min_price, target_days, use_gemini, run_id } = req.body;
+    const { item, brand, model, notes, condition, min_price, target_days, speed_mode, use_gemini, run_id } = req.body;
     const runId = run_id || `run_${Date.now()}`;
+
+    if (!item) {
+      return res.status(400).json({ ok: false, error: 'Item is required' });
+    }
+
     const runDir = path.join(PROCESSED_DIR, runId);
     fs.mkdirSync(runDir, { recursive: true });
 
@@ -104,15 +109,36 @@ app.post('/api/run', async (req, res) => {
     // Store progress for this run
     progressStore[runId] = { status: 'scraping', step: 0, total: 5, message: 'Starting scrape...' };
 
-    // Scrape with 5 different sort metrics
+    // Determine number of pages based on speed mode
     const sortOptions = ['3', '4', '5', '6', '7']; // Different sort metrics
-    for (let i = 0; i < sortOptions.length; i++) {
-      const sortValue = sortOptions[i];
+    let pagesToScrape;
+    let totalPages;
+    
+    switch (speed_mode) {
+      case 'ultra_fast':
+        pagesToScrape = sortOptions.slice(0, 1); // Only first sort method
+        totalPages = 1;
+        break;
+      case 'fast':
+        pagesToScrape = sortOptions.slice(0, 2); // First 2 sort methods
+        totalPages = 2;
+        break;
+      default: // 'normal'
+        pagesToScrape = sortOptions; // All 5 sort methods
+        totalPages = 5;
+    }
+    
+    // Update progress store with correct total
+    progressStore[runId] = { status: 'scraping', step: 0, total: totalPages, message: 'Starting scrape...' };
+    
+    // Scrape with selected sort metrics
+    for (let i = 0; i < pagesToScrape.length; i++) {
+      const sortValue = pagesToScrape[i];
       progressStore[runId] = { 
         status: 'scraping', 
         step: i + 1, 
-        total: 5, 
-        message: `Scraping with sort method ${i + 1} of 5...` 
+        total: totalPages, 
+        message: `Scraping with sort method ${i + 1} of ${totalPages}...` 
       };
       
       const args = [
@@ -141,23 +167,40 @@ app.post('/api/run', async (req, res) => {
       }
     }
 
-    // Merge CSVs via merge_csvs.py
-    progressStore[runId] = { 
-      status: 'merging', 
-      step: 1, 
-      total: 1, 
-      message: 'Merging CSV files...' 
-    };
+    // Handle CSV combining based on speed mode
+    let combinedCsvPath;
+    let combinedName;
     
-    const itemSlug = [String(item), String(brand), String(model), String(notes)].filter(Boolean).join(' ').trim() || 'items';
-    const mergeArgs = [
-      path.join(BASE_DIR, 'merge_csvs.py'),
-      runDir,
-      itemSlug,
-      ...csvPaths,
-    ];
-    const merged = await runPythonJson(mergeArgs);
-    const combinedName = path.basename(merged.csv_path || '');
+    if (speed_mode === 'ultra_fast' && csvPaths.length === 1) {
+      // Ultra fast: Skip merging, use single CSV directly
+      combinedCsvPath = csvPaths[0];
+      combinedName = path.basename(combinedCsvPath);
+      progressStore[runId] = { 
+        status: 'merging', 
+        step: 1, 
+        total: 1, 
+        message: 'Using single CSV file (ultra fast mode)...' 
+      };
+    } else {
+      // Normal/Fast: Merge multiple CSVs
+      progressStore[runId] = { 
+        status: 'merging', 
+        step: 1, 
+        total: 1, 
+        message: 'Merging CSV files...' 
+      };
+      
+      const itemSlug = [String(item), String(brand), String(model), String(notes)].filter(Boolean).join(' ').trim() || 'items';
+      const mergeArgs = [
+        path.join(BASE_DIR, 'merge_csvs.py'),
+        runDir,
+        itemSlug,
+        ...csvPaths,
+      ];
+      const merged = await runPythonJson(mergeArgs);
+      combinedCsvPath = merged.csv_path;
+      combinedName = path.basename(combinedCsvPath || '');
+    }
 
     // Always run Gemini scoring for price prediction
     progressStore[runId] = { 
@@ -176,7 +219,7 @@ app.post('/api/run', async (req, res) => {
     // Score the CSV
     const weightArgs = [
       path.join(BASE_DIR, 'csv_score.py'),
-      path.join(runDir, combinedName),
+      combinedCsvPath,
       runDir,
       queryText,
       '--batch-size=30',
@@ -230,6 +273,14 @@ app.post('/api/run', async (req, res) => {
     } catch (e) {
       // Ignore cleanup errors - don't fail the response
       console.log('Cleanup warning:', e.message);
+    }
+
+    // Check if prediction has valid data
+    if (!prediction.predicted_price || prediction.data_points === 0 || prediction.data_points === "0") {
+      return res.json({
+        ok: false,
+        error: 'No data available for price prediction. Try adjusting your search criteria or check back later when more listings are available.'
+      });
     }
 
     return res.json({
