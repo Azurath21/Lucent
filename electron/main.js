@@ -76,7 +76,7 @@ function startServer() {
     delete require.cache[require.resolve('./server.js')];
     
     // Require the server module directly
-    require('./server.js');
+    require('../server.js');
     
     console.log('Server started successfully');
   } catch (error) {

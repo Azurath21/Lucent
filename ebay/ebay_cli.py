@@ -4,7 +4,7 @@ import sys
 import os
 import csv
 import time
-from ebay_scraper import EbayScraper
+from .ebay_scraper import EbayScraper
 
 def main():
     parser = argparse.ArgumentParser(description="CLI wrapper for EbayScraper that outputs JSON")

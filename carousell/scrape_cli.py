@@ -2,7 +2,7 @@ import argparse
 import json
 import sys
 
-from run_carousell_scraper import CarousellScraper
+from .run_carousell_scraper import CarousellScraper
 
 
 def main():

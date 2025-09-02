@@ -4,7 +4,7 @@ import requests
 import random
 import time
 from itertools import cycle
-from facebook_marketplace_scraper import FacebookMarketplaceScraper
+from .facebook_marketplace_scraper import FacebookMarketplaceScraper
 
 class FacebookProxyScraper(FacebookMarketplaceScraper):
     """

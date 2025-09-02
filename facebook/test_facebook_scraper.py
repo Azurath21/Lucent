@@ -2,7 +2,7 @@
 
 import sys
 import os
-from facebook_marketplace_scraper import FacebookMarketplaceScraper
+from .facebook_marketplace_scraper import FacebookMarketplaceScraper
 
 def test_facebook_scraper():
     print("=== Facebook Scraper Debug Test ===")

@@ -98,7 +98,7 @@ class FacebookScraperManager:
     def _try_stealth_scraper(self) -> Optional[Dict]:
         """Try undetected Chrome scraper"""
         try:
-            from facebook_stealth_scraper import FacebookStealthScraper
+            from .facebook_stealth_scraper import FacebookStealthScraper
             
             scraper = FacebookStealthScraper(
                 item=self.item,
@@ -123,7 +123,7 @@ class FacebookScraperManager:
     def _try_enhanced_selenium(self) -> Optional[Dict]:
         """Try enhanced Selenium scraper"""
         try:
-            from facebook_marketplace_scraper import FacebookMarketplaceScraper
+            from .facebook_marketplace_scraper import FacebookMarketplaceScraper
             
             scraper = FacebookMarketplaceScraper(
                 item=self.item,
@@ -154,7 +154,7 @@ class FacebookScraperManager:
     def _try_requests_scraper(self) -> Optional[Dict]:
         """Try requests-based scraper"""
         try:
-            from facebook_requests_scraper import FacebookRequestsScraper
+            from .facebook_requests_scraper import FacebookRequestsScraper
             
             scraper = FacebookRequestsScraper(
                 item=self.item,
@@ -174,7 +174,7 @@ class FacebookScraperManager:
     def _try_playwright_scraper(self) -> Optional[Dict]:
         """Try Playwright scraper (based on passivebot repo)"""
         try:
-            from facebook_playwright_scraper import FacebookPlaywrightScraper
+            from .facebook_playwright_scraper import FacebookPlaywrightScraper
             
             scraper = FacebookPlaywrightScraper(
                 item=self.item,
@@ -197,7 +197,7 @@ class FacebookScraperManager:
     def _try_proxy_scraper(self) -> Optional[Dict]:
         """Try proxy rotation scraper"""
         try:
-            from facebook_proxy_scraper import scrape_with_retry
+            from .facebook_proxy_scraper import scrape_with_retry
             
             result = scrape_with_retry(self.item, max_retries=2)
             return result
