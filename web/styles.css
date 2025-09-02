@@ -8,11 +8,16 @@ body { font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sa
 .titlescreen-image { max-width: 90vw; max-height: 90vh; object-fit: contain; }
 
 /* Title with logo styles */
-.title-container { display: flex; align-items: center; justify-content: center; gap: min(8px, 2vw); margin-bottom: min(20px, 4vw); flex-wrap: wrap; }
-.logo { height: clamp(50px, 12.5vw, 100px); width: auto; object-fit: contain; border: none; outline: none; }
+.title-container { display: flex; align-items: center; justify-content: center; gap: min(8px, 2vw); margin-bottom: min(20px, 4vw); flex-wrap: wrap; position: relative; }
+.logo { height: clamp(50px, 12.5vw, 100px); width: auto; object-fit: contain; border: none; outline: none; border-radius: 12px; }
 h1 { margin: 0; font-size: clamp(24px, 8vw, 48px); font-weight:700; text-align:center; line-height: 1.1; }
 .title-black { color: #000000; }
 .title-red { color: #dc2626; }
+.title-ebay { color: #e53238; } /* eBay red for 'e' */
+.title-ebay .letter-e { color: #e53238; } /* red */
+.title-ebay .letter-b { color: #0064d2; } /* blue */
+.title-ebay .letter-a { color: #f5af02; } /* yellow */
+.title-ebay .letter-y { color: #86b817; } /* green */
 h2 { color:#dc2626; font-size: clamp(16px, 3vw, 18px); font-weight:600; margin: 0 0 16px 0; border-bottom: 2px solid #dc2626; padding-bottom: 8px; }
 #page-1 h2 { text-align: center; }
 label { display:block; font-weight:600; margin: 14px 0 6px; color:#4a4a4a; font-size: clamp(14px, 2.5vw, 16px); }
@@ -38,11 +43,47 @@ img { max-width:100%; border-radius:8px; border:2px solid #9ca3af; }
 /* Stage styling */
 .stage { background:#e5e5e5; border:2px solid #dc2626; border-radius: 12px; padding: 20px; margin: 20px 0; }
 
+/* eBay theme page-specific styling */
+body.ebay-theme #page-0 .stage { border-color: #2563eb; } /* Details page - Blue */
+body.ebay-theme #page-0 h2 { color: #2563eb; border-color: #2563eb; }
+body.ebay-theme #page-0 input:focus, body.ebay-theme #page-0 select:focus { border-color: #2563eb; }
+body.ebay-theme #page-0 .nav-button.primary { background: #2563eb; }
+body.ebay-theme #page-0 .nav-button.primary:hover { background: #1d4ed8; }
+
+body.ebay-theme #page-1 .stage { border-color: #86b817; } /* Time page - Green */
+body.ebay-theme #page-1 h2 { color: #86b817; border-color: #86b817; }
+body.ebay-theme #page-1 input:focus, body.ebay-theme #page-1 select:focus { border-color: #86b817; }
+body.ebay-theme #page-1 .nav-button.primary { background: #86b817; }
+body.ebay-theme #page-1 .nav-button.primary:hover { background: #65a30d; }
+
+body.ebay-theme #page-2 .stage { border-color: #f5af02; } /* Mode page - Yellow */
+body.ebay-theme #page-2 h2 { color: #f5af02; border-color: #f5af02; }
+body.ebay-theme #page-2 input:focus, body.ebay-theme #page-2 select:focus { border-color: #f5af02; }
+body.ebay-theme #page-2 .nav-button.primary { background: #f5af02; }
+body.ebay-theme #page-2 .nav-button.primary:hover { background: #d97706; }
+body.ebay-theme #page-2 .speed-option:hover .speed-image { border-color: #f5af02; box-shadow: 0 4px 12px rgba(245,175,2,.15); }
+body.ebay-theme #page-2 .speed-option.selected .speed-image { border-color: #f5af02; background: #fffbeb; box-shadow: 0 4px 12px rgba(245,175,2,.25); }
+
 /* Progress indicator */
 .progress { display:flex; gap: clamp(4px, 1.5vw, 8px); margin: 12px 0 16px; }
 .progress .step { flex:1; text-align:center; border:2px solid #9ca3af; border-radius:999px; padding: clamp(4px, 1vw, 8px) clamp(6px, 1.5vw, 10px); color:#6b7280; font-weight:600; background:#f3f4f6; cursor:pointer; transition: all 0.2s; font-size: clamp(10px, 2vw, 14px); min-height: clamp(36px, 8vw, 44px); display: flex; align-items: center; justify-content: center; touch-action: manipulation; white-space: nowrap; }
+
+/* Default step styling - red for Carousell and Facebook */
 .progress .step.active { border-color:#dc2626; color:#dc2626; background:#ffffff; box-shadow: 0 4px 12px rgba(220,38,38,.08); }
 .progress .step:hover { border-color:#dc2626; }
+
+/* eBay theme step colors */
+body.ebay-theme .progress .step[data-step="0"] { border-color: #2563eb; color: #2563eb; background: #eff6ff; } /* Details - Blue */
+body.ebay-theme .progress .step[data-step="1"] { border-color: #f5af02; color: #f5af02; background: #fffbeb; } /* Time - Yellow */
+body.ebay-theme .progress .step[data-step="2"] { border-color: #86b817; color: #86b817; background: #f0fdf4; } /* Mode - Green */
+
+body.ebay-theme .progress .step.active[data-step="0"] { border-color: #2563eb; color: #2563eb; background: #ffffff; box-shadow: 0 4px 12px rgba(37,99,235,.15); }
+body.ebay-theme .progress .step.active[data-step="1"] { border-color: #f5af02; color: #f5af02; background: #ffffff; box-shadow: 0 4px 12px rgba(245,175,2,.15); }
+body.ebay-theme .progress .step.active[data-step="2"] { border-color: #86b817; color: #86b817; background: #ffffff; box-shadow: 0 4px 12px rgba(134,184,23,.15); }
+
+body.ebay-theme .progress .step:hover[data-step="0"] { border-color: #2563eb; }
+body.ebay-theme .progress .step:hover[data-step="1"] { border-color: #f5af02; }
+body.ebay-theme .progress .step:hover[data-step="2"] { border-color: #86b817; }
 
 /* Multi-page interface */
 .page { display: none; }
@@ -164,10 +205,111 @@ input:invalid:not(:focus):not(:placeholder-shown), select:invalid:not(:focus) { 
   .page-navigation { margin-top: min(16px, 4vw); gap: min(12px, 3vw); }
 }
 
+/* Theme toggle buttons */
+.theme-toggle-buttons { 
+  position: absolute; 
+  right: 0; 
+  top: 0; 
+  display: flex; 
+  gap: 8px; 
+}
+.theme-toggle { 
+  background: transparent; 
+  border: 2px solid #9ca3af; 
+  border-radius: 8px; 
+  padding: 8px; 
+  cursor: pointer; 
+  transition: all 0.2s; 
+  width: 44px; 
+  height: 44px; 
+  display: flex; 
+  align-items: center; 
+  justify-content: center; 
+}
+/* Default theme toggle styling - Carousell red */
+.theme-toggle:hover { 
+  border-color: #dc2626; 
+  box-shadow: 0 1px 4px rgba(220,38,38,.12); 
+}
+.theme-toggle.active { 
+  border-color: #dc2626; 
+  background: #fef2f2; 
+  box-shadow: 0 1px 4px rgba(220,38,38,.20); 
+}
+
+/* Blue theme toggle styling - Facebook */
+body.blue-theme .theme-toggle:hover { 
+  border-color: #2563eb; 
+  box-shadow: 0 1px 4px rgba(37,99,235,.12); 
+}
+body.blue-theme .theme-toggle.active { 
+  border-color: #2563eb; 
+  background: #eff6ff; 
+  box-shadow: 0 1px 4px rgba(37,99,235,.20); 
+}
+
+/* eBay theme toggle styling - Multi-color */
+body.ebay-theme .theme-toggle:hover { 
+  border-color: #86b817; 
+  box-shadow: 0 1px 4px rgba(134,184,23,.12); 
+}
+body.ebay-theme .theme-toggle.active { 
+  border-color: #86b817; 
+  background: #f0fdf4; 
+  box-shadow: 0 1px 4px rgba(134,184,23,.20); 
+}
+.toggle-icon { 
+  width: 24px; 
+  height: 24px; 
+  border: none; 
+  border-radius: 4px; 
+}
+
+/* Blue theme styles */
+body.blue-theme .card { border-color: #2563eb; box-shadow: 0 10px 30px rgba(37,99,235,.15); }
+body.blue-theme .title-red { color: #2563eb; }
+body.blue-theme h2 { color: #2563eb; border-color: #2563eb; }
+body.blue-theme input:focus, body.blue-theme select:focus { border-color: #2563eb; }
+body.blue-theme .progress .step.active { border-color: #2563eb; color: #2563eb; box-shadow: 0 4px 12px rgba(37,99,235,.08); }
+body.blue-theme .progress .step:hover { border-color: #2563eb; }
+body.blue-theme .nav-button.primary { background: #2563eb; }
+body.blue-theme .nav-button.primary:hover { background: #1d4ed8; }
+body.blue-theme .prediction-result h2 { color: #2563eb; }
+body.blue-theme .price-display { border-color: #2563eb; }
+body.blue-theme .price-value { color: #2563eb; }
+body.blue-theme .loading-inner { border-color: #2563eb; box-shadow: 0 10px 30px rgba(37,99,235,.25); }
+body.blue-theme .stage { border-color: #2563eb; }
+body.blue-theme .speed-option:hover .speed-image { border-color: #2563eb; box-shadow: 0 4px 12px rgba(37,99,235,.15); }
+body.blue-theme .speed-option.selected .speed-image { border-color: #2563eb; background: #eff6ff; box-shadow: 0 4px 12px rgba(37,99,235,.25); }
+body.blue-theme .theme-toggle:hover { border-color: #2563eb; box-shadow: 0 2px 8px rgba(37,99,235,.15); }
+body.blue-theme .theme-toggle.active { border-color: #2563eb; background: #eff6ff; box-shadow: 0 2px 8px rgba(37,99,235,.25); }
+body.blue-theme .flash { background: #eff6ff; border-color: #2563eb; color: #2563eb; }
+
+/* eBay theme styles */
+body.ebay-theme .card { border-color: #e53238; box-shadow: 0 10px 30px rgba(229,50,56,.15); }
+body.ebay-theme .title-red { color: #e53238; }
+body.ebay-theme h2 { color: #e53238; border-color: #e53238; }
+body.ebay-theme input:focus, body.ebay-theme select:focus { border-color: #e53238; }
+body.ebay-theme .progress .step.active { border-color: #e53238; color: #e53238; box-shadow: 0 4px 12px rgba(229,50,56,.08); }
+body.ebay-theme .progress .step:hover { border-color: #e53238; }
+body.ebay-theme .nav-button.primary { background: #e53238; }
+body.ebay-theme .nav-button.primary:hover { background: #c72e33; }
+body.ebay-theme .prediction-result h2 { color: #e53238; }
+body.ebay-theme .price-display { border-color: #e53238; }
+body.ebay-theme .price-value { color: #e53238; }
+body.ebay-theme .loading-inner { border-color: #e53238; box-shadow: 0 10px 30px rgba(229,50,56,.25); }
+body.ebay-theme .stage { border-color: #e53238; }
+body.ebay-theme .speed-option:hover .speed-image { border-color: #e53238; box-shadow: 0 4px 12px rgba(229,50,56,.15); }
+body.ebay-theme .speed-option.selected .speed-image { border-color: #e53238; background: #fef2f2; box-shadow: 0 4px 12px rgba(229,50,56,.25); }
+body.ebay-theme .theme-toggle:hover { border-color: #e53238; box-shadow: 0 2px 8px rgba(229,50,56,.15); }
+body.ebay-theme .theme-toggle.active { border-color: #e53238; background: #fef2f2; box-shadow: 0 2px 8px rgba(229,50,56,.25); }
+body.ebay-theme .flash { background: #fef2f2; border-color: #e53238; color: #e53238; }
+
 @media (max-width: 480px) {
   .speed-selection { gap: min(12px, 3vw); }
   .nav-button { padding: min(10px, 2.5vw) min(16px, 3.5vw); }
   .progress .step { font-size: clamp(8px, 1.8vw, 12px); padding: clamp(3px, 0.8vw, 4px) clamp(4px, 1vw, 6px); min-height: clamp(32px, 7vw, 36px); }
+  .theme-toggle-buttons { position: relative; margin-top: 12px; justify-content: center; }
 }
 
 /* iOS Safari specific fixes */

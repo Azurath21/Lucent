@@ -9,16 +9,33 @@
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-  <!-- Titlescreen overlay -->
+  <!-- Titlescreen overlays -->
   <div id="titlescreen" class="titlescreen">
     <img src="/titlescreen.png" alt="Lucent Carousell" class="titlescreen-image">
+  </div>
+  <div id="titlescreen2" class="titlescreen hidden">
+    <img src="/titlescreen2.png" alt="Lucent Marketplace" class="titlescreen-image">
+  </div>
+  <div id="titlescreen3" class="titlescreen hidden">
+    <img src="/titlescreen3.png" alt="Lucent eBay" class="titlescreen-image">
   </div>
   
   <div class="container">
     <div class="card">
       <div class="title-container">
-        <img src="/logo.png" alt="Lucent Logo" class="logo">
-        <h1><span class="title-black">LUCENT</span><br><span class="title-red">carousell</span></h1>
+        <img src="/logo.png" alt="Lucent Logo" class="logo" id="main-logo">
+        <h1><span class="title-black">LUCENT</span><br><span class="title-red" id="platform-name">carousell</span></h1>
+        <div class="theme-toggle-buttons">
+          <button type="button" id="facebook-toggle" class="theme-toggle" title="Switch to Facebook Marketplace">
+            <img src="/logo2.png" alt="Facebook Mode" class="toggle-icon">
+          </button>
+          <button type="button" id="carousell-toggle" class="theme-toggle active" title="Switch to Carousell">
+            <img src="/logo.png" alt="Carousell Mode" class="toggle-icon">
+          </button>
+          <button type="button" id="ebay-toggle" class="theme-toggle" title="Switch to eBay">
+            <img src="/logo3.png" alt="eBay Mode" class="toggle-icon">
+          </button>
+        </div>
       </div>
       <!-- Stage Progress Indicator -->
       <div class="progress" aria-label="Form progress">
@@ -46,11 +63,11 @@
                 <div>
                   <label for="condition">Condition</label>
                   <select id="condition" name="condition">
-                    <option value="3" selected>Brand new (3)</option>
-                    <option value="4">Like new (4)</option>
-                    <option value="7">Lightly used (7)</option>
-                    <option value="5">Well used (5)</option>
-                    <option value="6">Heavily used (6)</option>
+                    <option value="3" selected>Brand new</option>
+                    <option value="4">Like new</option>
+                    <option value="7">Lightly used</option>
+                    <option value="5">Well used</option>
+                    <option value="6">Heavily used</option>
                   </select>
                 </div>
               </div>
@@ -132,7 +149,6 @@
           <div class="prediction-details">
             <div class="detail-item">Target timeframe: <strong id="target_timeframe">0 days</strong></div>
             <div class="detail-item">Based on <strong id="data_points">0</strong> similar listings</div>
-            <div class="detail-item">Model accuracy: <strong id="model_accuracy">N/A</strong></div>
           </div>
         </div>
       </div>

@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lucent Setup - API Key Required</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .setup-container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            width: 100%;
+            max-width: 400px;
+        }
+        .logo {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .logo h1 {
+            color: #dc2626;
+            margin: 0;
+            font-size: 24px;
+            font-weight: 700;
+        }
+        .setup-form {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        label {
+            font-weight: 600;
+            color: #374151;
+        }
+        input[type="password"] {
+            padding: 12px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+        input[type="password"]:focus {
+            outline: none;
+            border-color: #dc2626;
+        }
+        .btn {
+            padding: 12px 20px;
+            background: #dc2626;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .btn:hover {
+            background: #b91c1c;
+        }
+        .btn:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+        }
+        .help-text {
+            font-size: 12px;
+            color: #6b7280;
+            margin-top: 5px;
+        }
+        .error {
+            color: #dc2626;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        .success {
+            color: #059669;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        .link {
+            color: #2563eb;
+            text-decoration: none;
+        }
+        .link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="setup-container">
+        <div class="logo">
+            <h1>LUCENT</h1>
+            <p style="margin: 0; color: #6b7280;">Setup Required</p>
+        </div>
+        
+        <div class="setup-form">
+            <label for="apiKey">Google Gemini API Key</label>
+            <input type="password" id="apiKey" placeholder="Enter your Gemini API key..." />
+            <div class="help-text">
+                Don't have an API key? Get one free at 
+                <a href="#" class="link" onclick="openGeminiLink()">Google AI Studio</a>
+            </div>
+            
+            <button class="btn" onclick="saveApiKey()">Save & Continue</button>
+            
+            <div id="message"></div>
+        </div>
+    </div>
+
+    <script>
+        const { ipcRenderer, shell } = require('electron');
+
+        function openGeminiLink() {
+            shell.openExternal('https://makersuite.google.com/app/apikey');
+        }
+
+        async function saveApiKey() {
+            const apiKey = document.getElementById('apiKey').value;
+            const messageEl = document.getElementById('message');
+            const btn = document.querySelector('.btn');
+            
+            if (!apiKey.trim()) {
+                messageEl.innerHTML = '<div class="error">Please enter your API key</div>';
+                return;
+            }
+            
+            btn.disabled = true;
+            btn.textContent = 'Saving...';
+            
+            try {
+                const result = await ipcRenderer.invoke('save-api-key', apiKey);
+                
+                if (result.success) {
+                    messageEl.innerHTML = '<div class="success">API key saved! Starting app...</div>';
+                    
+                    // Close setup window and create main window
+                    setTimeout(() => {
+                        window.close();
+                        ipcRenderer.invoke('restart-app');
+                    }, 1500);
+                } else {
+                    messageEl.innerHTML = `<div class="error">${result.error}</div>`;
+                    btn.disabled = false;
+                    btn.textContent = 'Save & Continue';
+                }
+            } catch (error) {
+                messageEl.innerHTML = `<div class="error">Failed to save API key: ${error.message}</div>`;
+                btn.disabled = false;
+                btn.textContent = 'Save & Continue';
+            }
+        }
+
+        // Handle Enter key
+        document.getElementById('apiKey').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                saveApiKey();
+            }
+        });
+    </script>
+</body>
+</html>

@@ -5,7 +5,7 @@ const fs = require('fs');
 const { spawn } = require('child_process');
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 3000;
 
 const BASE_DIR = __dirname;
 const WEB_DIR = path.join(BASE_DIR, 'web');
@@ -44,16 +44,39 @@ app.get('/', (req, res) => {
 });
 
 // Helper: run a Python process and parse JSON from stdout (last JSON object)
-function runPythonJson(args) {
+function runPythonJson(args, timeoutMs = 120000) { // 2 minute default timeout
   return new Promise((resolve, reject) => {
     const pyPath = getPythonPath();
     const child = spawn(pyPath, args, { cwd: BASE_DIR, windowsHide: true });
     let out = '';
     let err = '';
+    let isResolved = false;
+    
+    // Set up timeout only if timeoutMs > 0
+    let timeout = null;
+    if (timeoutMs > 0) {
+      timeout = setTimeout(() => {
+        if (!isResolved) {
+          isResolved = true;
+          child.kill('SIGTERM');
+          reject(new Error(`Python process timed out after ${timeoutMs/1000} seconds`));
+        }
+      }, timeoutMs);
+    }
+    
     child.stdout.on('data', (d) => { out += d.toString(); });
     child.stderr.on('data', (d) => { err += d.toString(); });
-    child.on('error', (e) => reject(new Error(`Failed to start Python: ${e.message}`)));
+    child.on('error', (e) => {
+      if (!isResolved) {
+        isResolved = true;
+        if (timeout) clearTimeout(timeout);
+        reject(new Error(`Failed to start Python: ${e.message}`));
+      }
+    });
     child.on('close', (code) => {
+      if (isResolved) return;
+      isResolved = true;
+      if (timeout) clearTimeout(timeout);
       let jsonStr = (out || '').trim();
       
       // Try to find the last complete JSON object
@@ -74,10 +97,31 @@ function runPythonJson(args) {
       try {
         const data = JSON.parse(jsonStr || '{}');
         if (data && data.ok) return resolve(data);
-        return reject(new Error(data && data.error ? data.error : `Python exited with code ${code}. stderr=${err.slice(-400)}`));
+        // For simple_price_predictor.py, accept any valid JSON (no "ok" field required)
+        if (data && data.predicted_price !== undefined) return resolve(data);
+        return reject(new Error(data && data.error ? data.error : `Python exited with code ${code}. stderr=${err.slice(-400)}. stdout=${out.slice(-200)}`));
       } catch (e) {
         return reject(new Error(`Failed to parse JSON. code=${code}. stdout=${out.slice(-200)}. stderr=${err.slice(-400)}`));
       }
+    });
+  });
+}
+
+// Helper: run a Python process and return raw stdout (for Facebook scraper)
+function runPython(args) {
+  return new Promise((resolve, reject) => {
+    const pyPath = getPythonPath();
+    const child = spawn(pyPath, args, { cwd: BASE_DIR, windowsHide: true });
+    let out = '';
+    let err = '';
+    child.stdout.on('data', (d) => { out += d.toString(); });
+    child.stderr.on('data', (d) => { err += d.toString(); });
+    child.on('error', (e) => reject(new Error(`Failed to start Python: ${e.message}`)));
+    child.on('close', (code) => {
+      if (code !== 0) {
+        return reject(new Error(`Python exited with code ${code}. stderr=${err.slice(-400)}`));
+      }
+      resolve(out);
     });
   });
 }
@@ -91,9 +135,11 @@ app.post('/api/start-run', async (req, res) => {
 
 // Main processing endpoint
 app.post('/api/run', async (req, res) => {
+  const { item, brand, model, notes, condition, min_price, max_price, location, days_since_listed, target_days, speed_mode, use_gemini, run_id, scraper } = req.body;
+  const runId = run_id || `run_${Date.now()}`;
+  const scraperMode = scraper || 'carousell'; // Default to carousell
+  
   try {
-    const { item, brand, model, notes, condition, min_price, target_days, speed_mode, use_gemini, run_id } = req.body;
-    const runId = run_id || `run_${Date.now()}`;
 
     if (!item) {
       return res.status(400).json({ ok: false, error: 'Item is required' });
@@ -105,48 +151,50 @@ app.post('/api/run', async (req, res) => {
     let lastQueryUrl = '';
     let lastScreenshotName = '';
     const csvPaths = [];
+    let combinedCsvPath = '';
 
-    // Store progress for this run
-    progressStore[runId] = { status: 'scraping', step: 0, total: 5, message: 'Starting scrape...' };
+    if (scraperMode === 'facebook' || scraperMode === 'ebay') {
+      // Route Facebook UI to Carousell scraper instead
+      progressStore[runId] = { status: 'scraping', step: 0, total: 5, message: 'Starting scrape...' };
 
-    // Determine number of pages based on speed mode
-    const sortOptions = ['3', '4', '5', '6', '7']; // Different sort metrics
-    let pagesToScrape;
-    let totalPages;
-    
-    switch (speed_mode) {
-      case 'ultra_fast':
-        pagesToScrape = sortOptions.slice(0, 1); // Only first sort method
-        totalPages = 1;
-        break;
-      case 'fast':
-        pagesToScrape = sortOptions.slice(0, 2); // First 2 sort methods
-        totalPages = 2;
-        break;
-      default: // 'normal'
-        pagesToScrape = sortOptions; // All 5 sort methods
-        totalPages = 5;
-    }
-    
-    // Update progress store with correct total
-    progressStore[runId] = { status: 'scraping', step: 0, total: totalPages, message: 'Starting scrape...' };
-    
-    // Scrape with selected sort metrics
-    for (let i = 0; i < pagesToScrape.length; i++) {
-      const sortValue = pagesToScrape[i];
-      progressStore[runId] = { 
-        status: 'scraping', 
-        step: i + 1, 
-        total: totalPages, 
-        message: `Scraping with sort method ${i + 1} of ${totalPages}...` 
-      };
+      // Determine number of pages based on speed mode (same as Carousell)
+      const sortOptions = ['3', '4', '5', '6', '7']; // Different sort metrics
+      let pagesToScrape;
+      let totalPages;
       
-      const args = [
-        path.join(BASE_DIR, 'scrape_cli.py'),
-        '--item', String(item),
-        '--brand', String(brand || ''),
-        '--model', String(model || ''),
-        '--notes', String(notes || ''),
+      switch (speed_mode) {
+        case 'ultra_fast':
+          pagesToScrape = sortOptions.slice(0, 1); // Only first sort method
+          totalPages = 1;
+          break;
+        case 'fast':
+          pagesToScrape = sortOptions.slice(0, 2); // First 2 sort methods
+          totalPages = 2;
+          break;
+        default: // 'normal'
+          pagesToScrape = sortOptions; // All 5 sort methods
+          totalPages = 5;
+      }
+      
+      // Update progress store with correct total
+      progressStore[runId] = { status: 'scraping', step: 0, total: totalPages, message: 'Starting scrape...' };
+      
+      // Scrape with selected sort metrics (same as Carousell)
+      for (let i = 0; i < pagesToScrape.length; i++) {
+        const sortValue = pagesToScrape[i];
+        progressStore[runId] = { 
+          status: 'scraping', 
+          step: i + 1, 
+          total: totalPages, 
+          message: `Scraping with sort method ${i + 1} of ${totalPages}...` 
+        };
+        
+        const args = [
+          path.join(BASE_DIR, 'scrape_cli.py'),
+          '--item', String(item),
+          '--brand', String(brand || ''),
+          '--model', String(model || ''),
+          '--notes', String(notes || ''),
         '--condition', String(condition || ''),
         '--min_price', String(min_price || ''),
         '--sort', sortValue,
@@ -167,39 +215,136 @@ app.post('/api/run', async (req, res) => {
       }
     }
 
-    // Handle CSV combining based on speed mode
-    let combinedCsvPath;
-    let combinedName;
-    
-    if (speed_mode === 'ultra_fast' && csvPaths.length === 1) {
-      // Ultra fast: Skip merging, use single CSV directly
-      combinedCsvPath = csvPaths[0];
-      combinedName = path.basename(combinedCsvPath);
-      progressStore[runId] = { 
-        status: 'merging', 
-        step: 1, 
-        total: 1, 
-        message: 'Using single CSV file (ultra fast mode)...' 
-      };
-    } else {
-      // Normal/Fast: Merge multiple CSVs
-      progressStore[runId] = { 
-        status: 'merging', 
-        step: 1, 
-        total: 1, 
-        message: 'Merging CSV files...' 
-      };
+      // Handle CSV combining (same as Carousell)
+      let combinedName;
       
-      const itemSlug = [String(item), String(brand), String(model), String(notes)].filter(Boolean).join(' ').trim() || 'items';
-      const mergeArgs = [
-        path.join(BASE_DIR, 'merge_csvs.py'),
-        runDir,
-        itemSlug,
-        ...csvPaths,
+      if (speed_mode === 'ultra_fast' && csvPaths.length === 1) {
+        // Ultra fast: Skip merging, use single CSV directly
+        combinedCsvPath = csvPaths[0];
+        combinedName = path.basename(combinedCsvPath);
+        progressStore[runId] = { 
+          status: 'merging', 
+          step: 1, 
+          total: 1, 
+          message: 'Using single CSV file (ultra fast mode)...' 
+        };
+      } else {
+        // Normal/Fast: Merge multiple CSVs
+        progressStore[runId] = { 
+          status: 'merging', 
+          step: 1, 
+          total: 1, 
+          message: 'Merging CSV files...' 
+        };
+        
+        const itemSlug = [String(item), String(brand), String(model), String(notes)].filter(Boolean).join(' ').trim() || 'items';
+        const mergeArgs = [
+          path.join(BASE_DIR, 'merge_csvs.py'),
+          runDir,
+          itemSlug,
+          ...csvPaths,
+        ];
+        const merged = await runPythonJson(mergeArgs);
+        combinedCsvPath = merged.csv_path;
+        combinedName = path.basename(combinedCsvPath || '');
+      }
+      
+    } else {
+      // Original Carousell scraper mode
+      // Store progress for this run
+      progressStore[runId] = { status: 'scraping', step: 0, total: 5, message: 'Starting scrape...' };
+
+      // Determine number of pages based on speed mode
+      const sortOptions = ['3', '4', '5', '6', '7']; // Different sort metrics
+      let pagesToScrape;
+      let totalPages;
+      
+      switch (speed_mode) {
+        case 'ultra_fast':
+          pagesToScrape = sortOptions.slice(0, 1); // Only first sort method
+          totalPages = 1;
+          break;
+        case 'fast':
+          pagesToScrape = sortOptions.slice(0, 2); // First 2 sort methods
+          totalPages = 2;
+          break;
+        default: // 'normal'
+          pagesToScrape = sortOptions; // All 5 sort methods
+          totalPages = 5;
+      }
+      
+      // Update progress store with correct total
+      progressStore[runId] = { status: 'scraping', step: 0, total: totalPages, message: 'Starting scrape...' };
+      
+      // Scrape with selected sort metrics
+      for (let i = 0; i < pagesToScrape.length; i++) {
+        const sortValue = pagesToScrape[i];
+        progressStore[runId] = { 
+          status: 'scraping', 
+          step: i + 1, 
+          total: totalPages, 
+          message: `Scraping with sort method ${i + 1} of ${totalPages}...` 
+        };
+        
+        const args = [
+          path.join(BASE_DIR, 'scrape_cli.py'),
+          '--item', String(item),
+          '--brand', String(brand || ''),
+          '--model', String(model || ''),
+          '--notes', String(notes || ''),
+        '--condition', String(condition || ''),
+        '--min_price', String(min_price || ''),
+        '--sort', sortValue,
       ];
-      const merged = await runPythonJson(mergeArgs);
-      combinedCsvPath = merged.csv_path;
-      combinedName = path.basename(combinedCsvPath || '');
+      const data = await runPythonJson(args);
+      if (data.query_url) lastQueryUrl = data.query_url;
+      if (data.screenshot_path) lastScreenshotName = path.basename(data.screenshot_path);
+      if (data.csv_path) {
+        const src = String(data.csv_path);
+        const dest = path.join(runDir, path.basename(src));
+        try {
+          fs.renameSync(src, dest);
+          csvPaths.push(dest);
+        } catch (e) {
+          // If move fails, fallback to using original path
+          csvPaths.push(src);
+        }
+      }
+    }
+
+      // Handle CSV combining based on speed mode for Carousell
+      let combinedName;
+      
+      if (speed_mode === 'ultra_fast' && csvPaths.length === 1) {
+        // Ultra fast: Skip merging, use single CSV directly
+        combinedCsvPath = csvPaths[0];
+        combinedName = path.basename(combinedCsvPath);
+        progressStore[runId] = { 
+          status: 'merging', 
+          step: 1, 
+          total: 1, 
+          message: 'Using single CSV file (ultra fast mode)...' 
+        };
+      } else {
+        // Normal/Fast: Merge multiple CSVs
+        progressStore[runId] = { 
+          status: 'merging', 
+          step: 1, 
+          total: 1, 
+          message: 'Merging CSV files...' 
+        };
+        
+        const itemSlug = [String(item), String(brand), String(model), String(notes)].filter(Boolean).join(' ').trim() || 'items';
+        const mergeArgs = [
+          path.join(BASE_DIR, 'merge_csvs.py'),
+          runDir,
+          itemSlug,
+          ...csvPaths,
+        ];
+        const merged = await runPythonJson(mergeArgs);
+        combinedCsvPath = merged.csv_path;
+        combinedName = path.basename(combinedCsvPath || '');
+      }
     }
 
     // Always run Gemini scoring for price prediction
@@ -216,7 +361,7 @@ app.post('/api/run', async (req, res) => {
       throw new Error('GOOGLE_API_KEY is required for price prediction.');
     }
     
-    // Score the CSV
+    // Score the CSV with extended timeout for AI processing
     const weightArgs = [
       path.join(BASE_DIR, 'csv_score.py'),
       combinedCsvPath,
@@ -224,7 +369,7 @@ app.post('/api/run', async (req, res) => {
       queryText,
       '--batch-size=30',
     ];
-    const weightedResp = await runPythonJson(weightArgs);
+    const weightedResp = await runPythonJson(weightArgs, 0); // No timeout - let AI weighting complete fully
     const weightedCsvPath = weightedResp.csv_path;
     
     // Run price prediction
@@ -236,8 +381,8 @@ app.post('/api/run', async (req, res) => {
     };
     
     const predictionArgs = [
-      path.join(BASE_DIR, 'price_predictor.py'),
-      weightedCsvPath,
+      path.join(BASE_DIR, 'simple_price_predictor.py'),
+      combinedCsvPath,
       String(target_days),
     ];
     const prediction = await runPythonJson(predictionArgs);

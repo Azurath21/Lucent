@@ -63,7 +63,7 @@ def predict_price(csv_path: str, target_days: int):
         df = pd.read_csv(csv_path)
         
         # Ensure required columns exist
-        required_cols = ['Date', 'Item', 'Price', 'Relevance_Weight']
+        required_cols = ['Date', 'Item', 'Price']
         for col in required_cols:
             if col not in df.columns:
                 raise ValueError(f"Missing required column: {col}")
@@ -72,9 +72,18 @@ def predict_price(csv_path: str, target_days: int):
             raise ValueError("CSV file is empty")
         
         # Clean and convert data
-        df['Price'] = df['Price'].str.replace('S$', '').str.replace(',', '').astype(float)
+        # Handle Price column - convert to string first if needed
+        df['Price'] = df['Price'].astype(str)
+        df['Price'] = df['Price'].str.replace('S$', '').str.replace('SGD', '').str.replace(',', '').str.strip()
+        df['Price'] = pd.to_numeric(df['Price'], errors='coerce')
+        
         df['Date'] = pd.to_datetime(df['Date'], format='%Y-%m-%d', errors='coerce')
-        df['Relevance_Weight'] = df['Relevance_Weight'].astype(float)
+        
+        # Handle Relevance_Weight column - add default if missing
+        if 'Relevance_Weight' not in df.columns:
+            df['Relevance_Weight'] = 1.0
+        else:
+            df['Relevance_Weight'] = pd.to_numeric(df['Relevance_Weight'], errors='coerce').fillna(1.0)
         
         # Remove rows with invalid dates
         df = df.dropna(subset=['Date'])

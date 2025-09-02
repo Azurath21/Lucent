@@ -149,10 +149,11 @@ def main():
         item_texts = [item[1] for item in batch_items]  # Extract item text
         
         batch_num = batch_idx//batch_size + 1
-        print(f"Processing batch {batch_num}/{total_batches} ({len(item_texts)} items)", file=sys.stderr)
+        print(f"AI Weighting: Processing batch {batch_num}/{total_batches} ({len(item_texts)} items)...", file=sys.stderr, flush=True)
         
         # Score this batch
         batch_scores = score_batch(query, item_texts, model, batch_num=batch_num, total_batches=total_batches)
+        print(f"AI Weighting: Completed batch {batch_num}/{total_batches}", file=sys.stderr, flush=True)
         all_scores.extend(batch_scores)
         
         # Small delay between batches to be API-friendly
@@ -167,6 +168,7 @@ def main():
         for (date, item, price), score in zip(items_data, all_scores):
             writer.writerow([date, item, price, f"{score:.4f}"])
     
+    print(f"AI Weighting: Completed all {total_batches} batches. Writing output file...", file=sys.stderr, flush=True)
     print(json.dumps({"ok": True, "csv_path": output_path, "count": len(items_data)}))
 
 if __name__ == "__main__":
