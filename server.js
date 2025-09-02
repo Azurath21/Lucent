@@ -190,7 +190,7 @@ app.post('/api/run', async (req, res) => {
         };
         
         const args = [
-          path.join(BASE_DIR, 'scrape_cli.py'),
+          path.join(BASE_DIR, 'carousell', 'scrape_cli.py'),
           '--item', String(item),
           '--brand', String(brand || ''),
           '--model', String(model || ''),
@@ -239,7 +239,7 @@ app.post('/api/run', async (req, res) => {
         
         const itemSlug = [String(item), String(brand), String(model), String(notes)].filter(Boolean).join(' ').trim() || 'items';
         const mergeArgs = [
-          path.join(BASE_DIR, 'merge_csvs.py'),
+          path.join(BASE_DIR, 'utils', 'merge_csvs.py'),
           runDir,
           itemSlug,
           ...csvPaths,
@@ -287,7 +287,7 @@ app.post('/api/run', async (req, res) => {
         };
         
         const args = [
-          path.join(BASE_DIR, 'scrape_cli.py'),
+          path.join(BASE_DIR, 'carousell', 'scrape_cli.py'),
           '--item', String(item),
           '--brand', String(brand || ''),
           '--model', String(model || ''),
@@ -336,7 +336,7 @@ app.post('/api/run', async (req, res) => {
         
         const itemSlug = [String(item), String(brand), String(model), String(notes)].filter(Boolean).join(' ').trim() || 'items';
         const mergeArgs = [
-          path.join(BASE_DIR, 'merge_csvs.py'),
+          path.join(BASE_DIR, 'utils', 'merge_csvs.py'),
           runDir,
           itemSlug,
           ...csvPaths,
@@ -381,7 +381,7 @@ app.post('/api/run', async (req, res) => {
     };
     
     const predictionArgs = [
-      path.join(BASE_DIR, 'simple_price_predictor.py'),
+      path.join(BASE_DIR, 'utils', 'simple_price_predictor.py'),
       combinedCsvPath,
       String(target_days),
     ];
