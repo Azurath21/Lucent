@@ -297,7 +297,7 @@ body.ebay-theme .nav-button.primary:hover { background: #c72e33; }
 body.ebay-theme .prediction-result h2 { color: #e53238; }
 body.ebay-theme .price-display { border-color: #e53238; }
 body.ebay-theme .price-value { color: #e53238; }
-body.ebay-theme .loading-inner { border-color: #e53238; box-shadow: 0 10px 30px rgba(229,50,56,.25); }
+body.ebay-theme .loading-inner { border-color: #f5af02; box-shadow: 0 10px 30px rgba(245,175,2,.25); }
 body.ebay-theme .stage { border-color: #e53238; }
 body.ebay-theme .speed-option:hover .speed-image { border-color: #e53238; box-shadow: 0 4px 12px rgba(229,50,56,.15); }
 body.ebay-theme .speed-option.selected .speed-image { border-color: #e53238; background: #fef2f2; box-shadow: 0 4px 12px rgba(229,50,56,.25); }

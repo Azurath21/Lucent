@@ -190,7 +190,7 @@ app.post('/api/run', async (req, res) => {
         };
         
         const args = [
-          path.join(BASE_DIR, 'carousell', 'scrape_cli.py'),
+          '-m', 'carousell.scrape_cli',
           '--item', String(item),
           '--brand', String(brand || ''),
           '--model', String(model || ''),
@@ -287,7 +287,7 @@ app.post('/api/run', async (req, res) => {
         };
         
         const args = [
-          path.join(BASE_DIR, 'carousell', 'scrape_cli.py'),
+          '-m', 'carousell.scrape_cli',
           '--item', String(item),
           '--brand', String(brand || ''),
           '--model', String(model || ''),
