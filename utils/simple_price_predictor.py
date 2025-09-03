@@ -11,6 +11,10 @@ import json
 import re
 from datetime import datetime
 
+# Add debug output to stderr
+def debug_print(msg):
+    print(f"DEBUG: {msg}", file=sys.stderr)
+
 def parse_price(price_str):
     """Extract numeric price from price string like 'SGD 450' or 'S$488'."""
     if not price_str:
@@ -24,22 +28,36 @@ def simple_predict_price(csv_path: str, target_days: int):
     Simple price prediction using basic CSV parsing and statistics.
     """
     try:
+        debug_print(f"Reading CSV file: {csv_path}")
+        
         # Read CSV file
         prices = []
         items = []
+        weights_found = False
         
         with open(csv_path, 'r', encoding='utf-8') as csvfile:
             reader = csv.DictReader(csvfile)
             
+            debug_print(f"CSV columns: {reader.fieldnames}")
+            
             for row in reader:
                 price_str = row.get('Price', '')
                 item_name = row.get('Item', '')
+                weight_str = row.get('Relevance_Weight', '1.0')  # Default weight if missing
+                
+                debug_print(f"Processing row - Price: {price_str}, Weight: {weight_str}")
                 
                 if price_str and item_name:
                     price = parse_price(price_str)
+                    weight = float(weight_str) if weight_str else 1.0
+                    
                     if price > 0:
-                        prices.append(price)
-                        items.append(item_name)
+                        # Store price and weight for weighted calculation
+                        prices.append((price, weight))
+                        items.append(f"{item_name} (weight: {weight:.2f})")
+                        debug_print(f"Added price: {price}, weight: {weight}")
+        
+        debug_print(f"Total prices found: {len(prices)}")
         
         if not prices:
             # Return a valid JSON structure even with no data
@@ -64,10 +82,17 @@ def simple_predict_price(csv_path: str, target_days: int):
             }
             return result
         
-        # Calculate basic statistics
-        avg_price = sum(prices) / len(prices)
-        min_price = min(prices)
-        max_price = max(prices)
+        # Calculate weighted statistics
+        total_weighted_price = sum(price * weight for price, weight in prices)
+        total_weight = sum(weight for price, weight in prices)
+        
+        # Weighted average price
+        avg_price = total_weighted_price / total_weight if total_weight > 0 else 0
+        
+        # Min/max from actual prices (not weighted)
+        raw_prices = [price for price, weight in prices]
+        min_price = min(raw_prices)
+        max_price = max(raw_prices)
         
         # Simple prediction logic
         # For faster sales (≤30 days), apply discount
@@ -94,8 +119,11 @@ def simple_predict_price(csv_path: str, target_days: int):
         else:
             base_confidence = 0.6
         
-        # Reduce confidence if high variance
-        confidence = base_confidence * max(0.5, 1 - variance_ratio * 0.3)
+        # Add weighted information to results
+        avg_weight = total_weight / len(prices) if len(prices) > 0 else 1.0
+        
+        # Calculate confidence properly
+        confidence = base_confidence * (1 - min(variance_ratio * 0.1, 0.3))
         
         return {
             "predicted_price": predicted_price,
@@ -138,14 +166,20 @@ def simple_predict_price(csv_path: str, target_days: int):
         return result
 
 if __name__ == "__main__":
+    debug_print("Script started")
+    
     if len(sys.argv) < 2:
+        debug_print("Not enough arguments")
         print("Usage: python simple_price_predictor.py <csv_path> [target_days]")
         sys.exit(1)
     
     csv_path = sys.argv[1]
     target_days = int(sys.argv[2]) if len(sys.argv) > 2 else 30
     
+    debug_print(f"Arguments: csv_path={csv_path}, target_days={target_days}")
+    
     if not os.path.exists(csv_path):
+        debug_print(f"CSV file not found: {csv_path}")
         result = {
             'predicted_price': 0,
             'price_range': {'min': 0, 'max': 0, 'avg': 0},
@@ -159,5 +193,7 @@ if __name__ == "__main__":
         print(json.dumps(result, indent=2))
         sys.exit(0)
     
+    debug_print("Calling simple_predict_price function")
     result = simple_predict_price(csv_path, target_days)
+    debug_print(f"Function returned: {result}")
     print(json.dumps(result, indent=2))

@@ -51,14 +51,22 @@ Example: [0.85, 0.01, 0.67, 0.01]"""
             # Try to parse as JSON array
             try:
                 import re
-                # Extract JSON array from response
+                # Extract JSON array from response (including decimals)
                 json_match = re.search(r'\[[\d\.,\s]+\]', text)
                 if json_match:
                     scores = json.loads(json_match.group())
                     if len(scores) == len(items):
+                        print(f"DEBUG: AI scores parsed: {scores}", file=sys.stderr)
                         return [max(0.01, min(1.0, float(s))) for s in scores]
-            except:
-                pass
+                
+                # Try parsing the entire response as JSON
+                scores = json.loads(text)
+                if isinstance(scores, list) and len(scores) == len(items):
+                    print(f"DEBUG: AI scores from full JSON: {scores}", file=sys.stderr)
+                    return [max(0.01, min(1.0, float(s))) for s in scores]
+                    
+            except Exception as parse_error:
+                print(f"DEBUG: JSON parsing failed: {parse_error}, text: {text[:200]}", file=sys.stderr)
             
             # Fallback: extract all numbers and take first N
             import re
@@ -75,6 +83,7 @@ Example: [0.85, 0.01, 0.67, 0.01]"""
                 return [max(0.01, min(1.0, s)) for s in scores[:len(items)]]
                 
         except Exception as e:
+            print(f"DEBUG: AI scoring attempt {attempt + 1} failed: {e}", file=sys.stderr)
             if attempt == max_retries - 1:
                 print(f"Failed to score batch after {max_retries} attempts: {e}", file=sys.stderr)
             else:

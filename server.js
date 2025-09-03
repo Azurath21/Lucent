@@ -44,7 +44,7 @@ app.get('/', (req, res) => {
 });
 
 // Helper: run a Python process and parse JSON from stdout (last JSON object)
-function runPythonJson(args, timeoutMs = 120000) { // 2 minute default timeout
+function runPythonJson(args, timeoutMs = 0) { // No timeout by default
   return new Promise((resolve, reject) => {
     const pyPath = getPythonPath();
     const child = spawn(pyPath, args, { cwd: BASE_DIR, windowsHide: true });
@@ -80,6 +80,8 @@ function runPythonJson(args, timeoutMs = 120000) { // 2 minute default timeout
       let jsonStr = (out || '').trim();
       
       // Try to find the last complete JSON object
+      console.log('DEBUG: Raw Python output:', out.slice(-500)); // Show last 500 chars
+      
       const lastBrace = jsonStr.lastIndexOf('{');
       if (lastBrace >= 0) {
         // Extract from the last opening brace to the end
@@ -88,8 +90,10 @@ function runPythonJson(args, timeoutMs = 120000) { // 2 minute default timeout
           // Test if this is valid JSON
           JSON.parse(candidate);
           jsonStr = candidate;
+          console.log('DEBUG: Using extracted JSON:', candidate);
         } catch (e) {
           // If extraction failed, use the full output
+          console.log('DEBUG: JSON extraction failed, using full output');
           jsonStr = jsonStr;
         }
       }
@@ -99,8 +103,12 @@ function runPythonJson(args, timeoutMs = 120000) { // 2 minute default timeout
         if (data && data.ok) return resolve(data);
         // For simple_price_predictor.py, accept any valid JSON (no "ok" field required)
         if (data && data.predicted_price !== undefined) return resolve(data);
+        // For heuristic_score.py, accept JSON with success field
+        if (data && data.success !== undefined) return resolve(data);
         return reject(new Error(data && data.error ? data.error : `Python exited with code ${code}. stderr=${err.slice(-400)}. stdout=${out.slice(-200)}`));
       } catch (e) {
+        console.log('DEBUG: JSON parsing failed, raw output:', out);
+        console.log('DEBUG: Extracted jsonStr:', jsonStr);
         return reject(new Error(`Failed to parse JSON. code=${code}. stdout=${out.slice(-200)}. stderr=${err.slice(-400)}`));
       }
     });
@@ -129,15 +137,15 @@ function runPython(args) {
 // Start run endpoint - returns run ID immediately
 app.post('/api/start-run', async (req, res) => {
   const runId = `run_${Date.now()}`;
-  progressStore[runId] = { status: 'starting', step: 0, total: 5, message: 'Initializing...' };
+  progressStore[runId] = { status: 'starting', step: 0, total: 1, message: 'Starting scraper...' };
   res.json({ ok: true, run_id: runId });
 });
 
 // Main processing endpoint
 app.post('/api/run', async (req, res) => {
-  const { item, brand, model, notes, condition, min_price, max_price, location, days_since_listed, target_days, speed_mode, use_gemini, run_id, scraper } = req.body;
-  const runId = run_id || `run_${Date.now()}`;
-  const scraperMode = scraper || 'carousell'; // Default to carousell
+  const { item, brand, model, notes, condition, min_price, target_days, speed_mode, weighting_method } = req.body;
+  const runId = `run_${Date.now()}`;
+  const scraperMode = 'carousell'; // Default to carousell
   
   try {
 
@@ -155,7 +163,7 @@ app.post('/api/run', async (req, res) => {
 
     if (scraperMode === 'facebook' || scraperMode === 'ebay') {
       // Route Facebook UI to Carousell scraper instead
-      progressStore[runId] = { status: 'scraping', step: 0, total: 5, message: 'Starting scrape...' };
+      progressStore[runId] = { status: 'scraping', step: 1, total: totalPages, message: 'Scraping 1 of 1...' };
 
       // Determine number of pages based on speed mode (same as Carousell)
       const sortOptions = ['3', '4', '5', '6', '7']; // Different sort metrics
@@ -177,7 +185,7 @@ app.post('/api/run', async (req, res) => {
       }
       
       // Update progress store with correct total
-      progressStore[runId] = { status: 'scraping', step: 0, total: totalPages, message: 'Starting scrape...' };
+      progressStore[runId] = { status: 'scraping', step: 1, total: totalPages, message: `Scraping 1 of ${totalPages}...` };
       
       // Scrape with selected sort metrics (same as Carousell)
       for (let i = 0; i < pagesToScrape.length; i++) {
@@ -186,7 +194,7 @@ app.post('/api/run', async (req, res) => {
           status: 'scraping', 
           step: i + 1, 
           total: totalPages, 
-          message: `Scraping with sort method ${i + 1} of ${totalPages}...` 
+          message: `Scraping ${i + 1} of ${totalPages}...` 
         };
         
         const args = [
@@ -274,7 +282,7 @@ app.post('/api/run', async (req, res) => {
       }
       
       // Update progress store with correct total
-      progressStore[runId] = { status: 'scraping', step: 0, total: totalPages, message: 'Starting scrape...' };
+      progressStore[runId] = { status: 'scraping', step: 1, total: totalPages, message: `Scraping 1 of ${totalPages}...` };
       
       // Scrape with selected sort metrics
       for (let i = 0; i < pagesToScrape.length; i++) {
@@ -283,7 +291,7 @@ app.post('/api/run', async (req, res) => {
           status: 'scraping', 
           step: i + 1, 
           total: totalPages, 
-          message: `Scraping with sort method ${i + 1} of ${totalPages}...` 
+          message: `Scraping ${i + 1} of ${totalPages}...` 
         };
         
         const args = [
@@ -347,30 +355,52 @@ app.post('/api/run', async (req, res) => {
       }
     }
 
-    // Always run Gemini scoring for price prediction
-    progressStore[runId] = { 
-      status: 'scoring', 
-      step: 0, 
-      total: 1, 
-      message: 'Starting AI relevance scoring...' 
-    };
-    
+    // Score the CSV based on weighting method
     const queryText = [String(item), String(brand), String(model), String(notes)].filter(Boolean).join(' ').trim();
-    const key = String(process.env.GOOGLE_API_KEY || '');
-    if (!key) {
-      throw new Error('GOOGLE_API_KEY is required for price prediction.');
-    }
+    let weightedResp;
+    let weightedCsvPath;
     
-    // Score the CSV with extended timeout for AI processing
-    const weightArgs = [
-      path.join(BASE_DIR, 'csv_score.py'),
-      combinedCsvPath,
-      runDir,
-      queryText,
-      '--batch-size=30',
-    ];
-    const weightedResp = await runPythonJson(weightArgs, 0); // No timeout - let AI weighting complete fully
-    const weightedCsvPath = weightedResp.csv_path;
+    console.log(`DEBUG: weighting_method = "${weighting_method}" (type: ${typeof weighting_method})`); // Debug log
+    
+    if (weighting_method === 'heuristic') {
+      // Use heuristic weighting (fast)
+      progressStore[runId] = { 
+        status: 'weighting', 
+        step: 1, 
+        total: 1, 
+        message: 'Applying heuristic weighting...' 
+      };
+      
+      const heuristicArgs = [
+        path.join(BASE_DIR, 'utils', 'heuristic_score.py'),
+        combinedCsvPath,
+        queryText,
+      ];
+      console.log('DEBUG: Running heuristic weighting with args:', heuristicArgs); // Debug log
+      weightedResp = await runPythonJson(heuristicArgs); // No timeout
+      console.log('DEBUG: Heuristic weighting response:', weightedResp); // Debug log
+      weightedCsvPath = weightedResp.csv_path;
+    } else {
+      // Use AI weighting (default)
+      progressStore[runId] = { 
+        status: 'weighting', 
+        step: 1, 
+        total: 1, 
+        message: 'Applying AI weighting (this may take a while)...' 
+      };
+      
+      const weightArgs = [
+        path.join(BASE_DIR, 'csv_score.py'),
+        combinedCsvPath,
+        runDir,
+        queryText,
+        '--batch-size=30',
+      ];
+      console.log('DEBUG: Running AI weighting with args:', weightArgs); // Debug log
+      weightedResp = await runPythonJson(weightArgs); // No timeout
+      console.log('DEBUG: AI weighting response:', weightedResp); // Debug log
+      weightedCsvPath = weightedResp.csv_path;
+    }
     
     // Run price prediction
     progressStore[runId] = { 
@@ -380,48 +410,65 @@ app.post('/api/run', async (req, res) => {
       message: 'Running price prediction model...' 
     };
     
+    // Ensure we have a valid CSV path for prediction
+    const csvForPrediction = weightedCsvPath || combinedCsvPath;
+    console.log('DEBUG: Using CSV for prediction:', csvForPrediction);
+    
+    // Check if the CSV file exists before running prediction
+    if (!fs.existsSync(csvForPrediction)) {
+      console.error('ERROR: CSV file not found for prediction:', csvForPrediction);
+      return res.json({
+        ok: false,
+        error: 'CSV file not found for price prediction. The weighting process may have failed.'
+      });
+    }
+    
     const predictionArgs = [
       path.join(BASE_DIR, 'utils', 'simple_price_predictor.py'),
-      combinedCsvPath,
+      csvForPrediction,
       String(target_days),
     ];
+    console.log('DEBUG: Running prediction with args:', predictionArgs);
     const prediction = await runPythonJson(predictionArgs);
+    console.log('DEBUG: Prediction result:', prediction);
 
     // Clear progress when done
     delete progressStore[runId];
 
-    // Cleanup: Delete ALL raw and processed files after successful prediction
-    try {
-      // Delete all raw HTML files
-      const rawFiles = fs.readdirSync(RAW_DIR);
-      for (const file of rawFiles) {
-        if (file.endsWith('.html')) {
-          try {
-            fs.unlinkSync(path.join(RAW_DIR, file));
-          } catch (e) {
-            // Ignore cleanup errors
-          }
-        }
-      }
-      
-      // Delete all processed run directories
-      const processedDirs = fs.readdirSync(PROCESSED_DIR);
-      for (const dir of processedDirs) {
-        if (dir.startsWith('run_')) {
-          try {
-            fs.rmSync(path.join(PROCESSED_DIR, dir), { recursive: true, force: true });
-          } catch (e) {
-            // Ignore cleanup errors
-          }
-        }
-      }
-    } catch (e) {
-      // Ignore cleanup errors - don't fail the response
-      console.log('Cleanup warning:', e.message);
-    }
+    // Cleanup: DISABLED for debugging
+    console.log('DEBUG: File cleanup disabled - files preserved for debugging');
+    // try {
+    //   // Delete all raw HTML files
+    //   const rawFiles = fs.readdirSync(RAW_DIR);
+    //   for (const file of rawFiles) {
+    //     if (file.endsWith('.html')) {
+    //       try {
+    //         fs.unlinkSync(path.join(RAW_DIR, file));
+    //       } catch (e) {
+    //         // Ignore cleanup errors
+    //       }
+    //     }
+    //   }
+    //   
+    //   // Delete all processed run directories
+    //   const processedDirs = fs.readdirSync(PROCESSED_DIR);
+    //   for (const dir of processedDirs) {
+    //     if (dir.startsWith('run_')) {
+    //       try {
+    //         fs.rmSync(path.join(PROCESSED_DIR, dir), { recursive: true, force: true });
+    //       } catch (e) {
+    //         // Ignore cleanup errors
+    //       }
+    //     }
+    //   }
+    // } catch (e) {
+    //   // Ignore cleanup errors - don't fail the response
+    //   console.log('Cleanup warning:', e.message);
+    // }
 
     // Check if prediction has valid data
-    if (!prediction.predicted_price || prediction.data_points === 0 || prediction.data_points === "0") {
+    if (!prediction || !prediction.predicted_price || prediction.data_points === 0 || prediction.data_points === "0") {
+      console.log('DEBUG: Invalid prediction data:', prediction);
       return res.json({
         ok: false,
         error: 'No data available for price prediction. Try adjusting your search criteria or check back later when more listings are available.'
@@ -442,35 +489,36 @@ app.post('/api/run', async (req, res) => {
     // Clear progress when done
     delete progressStore[runId];
     
-    // Cleanup ALL files even on error
-    try {
-      // Delete all raw HTML files
-      const rawFiles = fs.readdirSync(RAW_DIR);
-      for (const file of rawFiles) {
-        if (file.endsWith('.html')) {
-          try {
-            fs.unlinkSync(path.join(RAW_DIR, file));
-          } catch (cleanupErr) {
-            // Ignore cleanup errors
-          }
-        }
-      }
-      
-      // Delete all processed run directories
-      const processedDirs = fs.readdirSync(PROCESSED_DIR);
-      for (const dir of processedDirs) {
-        if (dir.startsWith('run_')) {
-          try {
-            fs.rmSync(path.join(PROCESSED_DIR, dir), { recursive: true, force: true });
-          } catch (cleanupErr) {
-            // Ignore cleanup errors
-          }
-        }
-      }
-    } catch (cleanupErr) {
-      // Ignore cleanup errors
-      console.log('Error cleanup warning:', cleanupErr.message);
-    }
+    // Cleanup ALL files even on error - DISABLED for debugging
+    console.log('DEBUG: Error cleanup also disabled - files preserved for debugging');
+    // try {
+    //   // Delete all raw HTML files
+    //   const rawFiles = fs.readdirSync(RAW_DIR);
+    //   for (const file of rawFiles) {
+    //     if (file.endsWith('.html')) {
+    //       try {
+    //         fs.unlinkSync(path.join(RAW_DIR, file));
+    //       } catch (cleanupErr) {
+    //         // Ignore cleanup errors
+    //       }
+    //     }
+    //   }
+    //   
+    //   // Delete all processed run directories
+    //   const processedDirs = fs.readdirSync(PROCESSED_DIR);
+    //   for (const dir of processedDirs) {
+    //     if (dir.startsWith('run_')) {
+    //       try {
+    //         fs.rmSync(path.join(PROCESSED_DIR, dir), { recursive: true, force: true });
+    //       } catch (cleanupErr) {
+    //         // Ignore cleanup errors
+    //       }
+    //     }
+    //   }
+    // } catch (cleanupErr) {
+    //   // Ignore cleanup errors
+    //   console.log('Error cleanup warning:', cleanupErr.message);
+    // }
     
     return res.status(500).json({ ok: false, error: e.message || String(e) });
   }

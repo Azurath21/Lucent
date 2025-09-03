@@ -131,6 +131,21 @@
               </div>
             </div>
             <input type="hidden" id="speed_mode" name="speed_mode" value="normal">
+            
+            <div style="margin-top: 30px;">
+              <h3>Weighting Method</h3>
+              <div class="weighting-selection">
+                <div class="weighting-option selected" data-weighting="ai">
+                  <div class="weighting-label">AI Weighting</div>
+                  <div class="weighting-description">Uses Gemini AI for intelligent scoring</div>
+                </div>
+                <div class="weighting-option" data-weighting="heuristic">
+                  <div class="weighting-label">Heuristic Weighting</div>
+                  <div class="weighting-description">Fast keyword matching + outlier detection</div>
+                </div>
+              </div>
+            </div>
+            <input type="hidden" id="weighting_method" name="weighting_method" value="ai">
           </div>
           <div class="page-navigation">
             <button type="button" class="nav-button" id="prev-2">Previous</button>

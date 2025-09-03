@@ -51,11 +51,23 @@ function showPage(pageIndex) {
   currentPage = pageIndex;
 }
 
-// Navigation event listeners
-document.getElementById('next-0').addEventListener('click', () => showPage(1));
-document.getElementById('prev-1').addEventListener('click', () => showPage(0));
-document.getElementById('next-1').addEventListener('click', () => showPage(2));
-document.getElementById('prev-2').addEventListener('click', () => showPage(1));
+// Navigation event listeners with explicit preventDefault
+document.getElementById('next-0').addEventListener('click', (e) => {
+  e.preventDefault();
+  showPage(1);
+});
+document.getElementById('prev-1').addEventListener('click', (e) => {
+  e.preventDefault();
+  showPage(0);
+});
+document.getElementById('next-1').addEventListener('click', (e) => {
+  e.preventDefault();
+  showPage(2);
+});
+document.getElementById('prev-2').addEventListener('click', (e) => {
+  e.preventDefault();
+  showPage(1);
+});
 
 // Progress indicator click navigation
 steps.forEach((step, index) => {
@@ -63,17 +75,20 @@ steps.forEach((step, index) => {
 });
 
 // Speed selection handling
-const speedOptions = document.querySelectorAll('.speed-option');
-const speedModeInput = document.getElementById('speed_mode');
-
-speedOptions.forEach(option => {
+document.querySelectorAll('.speed-option').forEach(option => {
   option.addEventListener('click', () => {
-    // Remove selected class from all options
-    speedOptions.forEach(opt => opt.classList.remove('selected'));
-    // Add selected class to clicked option
+    document.querySelectorAll('.speed-option').forEach(opt => opt.classList.remove('selected'));
     option.classList.add('selected');
-    // Update hidden input value
-    speedModeInput.value = option.dataset.speed;
+    document.getElementById('speed_mode').value = option.dataset.speed;
+  });
+});
+
+// Weighting method selection handling
+document.querySelectorAll('.weighting-option').forEach(option => {
+  option.addEventListener('click', () => {
+    document.querySelectorAll('.weighting-option').forEach(opt => opt.classList.remove('selected'));
+    option.classList.add('selected');
+    document.getElementById('weighting_method').value = option.dataset.weighting;
   });
 });
 
@@ -90,6 +105,7 @@ form.addEventListener('submit', async (e) => {
   const min_price = document.getElementById('min_price').value.trim();
   const target_days = document.getElementById('target_days').value.trim();
   const speed_mode = document.getElementById('speed_mode').value.trim();
+  const weighting_method = document.getElementById('weighting_method').value.trim();
   const use_gemini = true; // Always use Gemini for price prediction
 
   // Custom validation with specific error messages
@@ -146,7 +162,7 @@ form.addEventListener('submit', async (e) => {
     const resp = await fetch('/api/run', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ item, brand, model, notes, condition, min_price, max_price: '', location: 'singapore', days_since_listed: 30, target_days, speed_mode, use_gemini, run_id: runId, scraper: currentScraper }),
+      body: JSON.stringify({ item, brand, model, notes, condition, min_price, max_price: '', location: 'singapore', days_since_listed: 30, target_days, speed_mode, weighting_method, use_gemini, run_id: runId, scraper: currentScraper }),
     });
     const data = await resp.json();
     if (!data.ok) throw new Error(data.error || 'Unknown error');
