@@ -135,6 +135,12 @@ out/
 *.rpm
 *.AppImage
 
+# Specific large Electron files
+"Lucent Carousell.exe"
+"Lucent Carousell.zip"
+dist/win-unpacked/
+dist/*/
+
 # Electron specific
 electron-builder.yml
 .electron-builder.yml
