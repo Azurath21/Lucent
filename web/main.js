@@ -92,6 +92,15 @@ document.querySelectorAll('.weighting-option').forEach(option => {
   });
 });
 
+// Price predictor selection handling
+document.querySelectorAll('.predictor-option').forEach(option => {
+  option.addEventListener('click', () => {
+    document.querySelectorAll('.predictor-option').forEach(opt => opt.classList.remove('selected'));
+    option.classList.add('selected');
+    document.getElementById('price_predictor').value = option.dataset.predictor;
+  });
+});
+
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
   hide(resultBox);
@@ -106,6 +115,7 @@ form.addEventListener('submit', async (e) => {
   const target_days = document.getElementById('target_days').value.trim();
   const speed_mode = document.getElementById('speed_mode').value.trim();
   const weighting_method = document.getElementById('weighting_method').value.trim();
+  const price_predictor = document.getElementById('price_predictor').value.trim();
   const use_gemini = true; // Always use Gemini for price prediction
 
   // Custom validation with specific error messages
@@ -162,7 +172,7 @@ form.addEventListener('submit', async (e) => {
     const resp = await fetch('/api/run', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ item, brand, model, notes, condition, min_price, max_price: '', location: 'singapore', days_since_listed: 30, target_days, speed_mode, weighting_method, use_gemini, run_id: runId, scraper: currentScraper }),
+      body: JSON.stringify({ item, brand, model, notes, condition, min_price, max_price: '', location: 'singapore', days_since_listed: 30, target_days, speed_mode, weighting_method, price_predictor, use_gemini, run_id: runId, scraper: currentScraper }),
     });
     const data = await resp.json();
     if (!data.ok) throw new Error(data.error || 'Unknown error');
@@ -176,6 +186,17 @@ form.addEventListener('submit', async (e) => {
     document.getElementById('predicted_price').textContent = `S$${parseFloat(data.predicted_price).toFixed(2)}`;
     document.getElementById('target_timeframe').textContent = `${data.target_days} days`;
     document.getElementById('data_points').textContent = data.data_points;
+    
+    // Show model accuracy for advanced tree model
+    const modelAccuracyItem = document.getElementById('model_accuracy_item');
+    const modelAccuracy = document.getElementById('model_accuracy');
+    
+    if (price_predictor === 'advanced' && data.model_accuracy_mae !== undefined && data.model_accuracy_mae !== "N/A") {
+      modelAccuracy.textContent = `MAE: S$${data.model_accuracy_mae}`;
+      modelAccuracyItem.style.display = 'block';
+    } else {
+      modelAccuracyItem.style.display = 'none';
+    }
 
     show(resultBox);
     // Fill all steps when result is ready

@@ -133,7 +133,7 @@
             <input type="hidden" id="speed_mode" name="speed_mode" value="normal">
             
             <div style="margin-top: 30px;">
-              <h3>Weighting Method</h3>
+              <h3 class="section-heading">Weighting Method</h3>
               <div class="weighting-selection">
                 <div class="weighting-option selected" data-weighting="ai">
                   <div class="weighting-label">AI Weighting</div>
@@ -146,6 +146,21 @@
               </div>
             </div>
             <input type="hidden" id="weighting_method" name="weighting_method" value="ai">
+            
+            <div style="margin-top: 30px;">
+              <h3 class="section-heading">Price Predictor</h3>
+              <div class="predictor-selection">
+                <div class="predictor-option" data-predictor="advanced">
+                  <div class="predictor-label">Advanced Tree Model</div>
+                  <div class="predictor-description">Machine learning with RandomForest</div>
+                </div>
+                <div class="predictor-option selected" data-predictor="simple">
+                  <div class="predictor-label">Simple Averaging</div>
+                  <div class="predictor-description">Fast weighted average calculation</div>
+                </div>
+              </div>
+            </div>
+            <input type="hidden" id="price_predictor" name="price_predictor" value="simple">
           </div>
           <div class="page-navigation">
             <button type="button" class="nav-button" id="prev-2">Previous</button>
@@ -164,6 +179,7 @@
           <div class="prediction-details">
             <div class="detail-item">Target timeframe: <strong id="target_timeframe">0 days</strong></div>
             <div class="detail-item">Based on <strong id="data_points">0</strong> similar listings</div>
+            <div class="detail-item" id="model_accuracy_item" style="display: none;">Model accuracy: <strong id="model_accuracy">N/A</strong></div>
           </div>
         </div>
       </div>

@@ -191,13 +191,14 @@ def calculate_heuristic_scores(csv_path, query_text):
             
             final_scores.append(score)
         
-        df['heuristic_score'] = final_scores
+        # Add the final relevance weight column (this is what the price predictor needs)
+        df['Relevance_Weight'] = final_scores
         
-        # Sort by heuristic score (descending)
-        df = df.sort_values('heuristic_score', ascending=False)
+        # Remove intermediate scoring columns to keep CSV clean
+        df = df.drop(columns=['keyword_score'], errors='ignore')
         
-        # Save the scored CSV with Relevance_Weight column for price predictor
-        df['Relevance_Weight'] = df['heuristic_score']
+        # Sort by relevance weight (descending)
+        df = df.sort_values('Relevance_Weight', ascending=False)
         output_path = csv_path.replace('.csv', '_heuristic_scored.csv')
         df.to_csv(output_path, index=False)
         
@@ -210,8 +211,8 @@ def calculate_heuristic_scores(csv_path, query_text):
             'avg_keyword_score': float(np.mean(keyword_scores)),
             'outliers_detected': int(np.sum(outliers)),
             'outlier_percentage': float(np.sum(outliers) / len(df) * 100) if len(df) > 0 else 0,
-            'top_score': float(df['heuristic_score'].max()) if not df.empty else 0,
-            'avg_score': float(df['heuristic_score'].mean()) if not df.empty else 0
+            'top_score': float(df['Relevance_Weight'].max()) if not df.empty else 0,
+            'avg_score': float(df['Relevance_Weight'].mean()) if not df.empty else 0
         }
         
         return {

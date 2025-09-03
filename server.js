@@ -423,11 +423,18 @@ app.post('/api/run', async (req, res) => {
       });
     }
     
+    // Choose price predictor based on user selection
+    const price_predictor = req.body.price_predictor || 'simple';
+    const predictorScript = price_predictor === 'advanced' 
+      ? 'price_predictor.py' 
+      : 'simple_price_predictor.py';
+    
     const predictionArgs = [
-      path.join(BASE_DIR, 'utils', 'simple_price_predictor.py'),
+      path.join(BASE_DIR, 'utils', predictorScript),
       csvForPrediction,
       String(target_days),
     ];
+    console.log('DEBUG: Using price predictor:', price_predictor, 'Script:', predictorScript);
     console.log('DEBUG: Running prediction with args:', predictionArgs);
     const prediction = await runPythonJson(predictionArgs);
     console.log('DEBUG: Prediction result:', prediction);
@@ -435,36 +442,35 @@ app.post('/api/run', async (req, res) => {
     // Clear progress when done
     delete progressStore[runId];
 
-    // Cleanup: DISABLED for debugging
-    console.log('DEBUG: File cleanup disabled - files preserved for debugging');
-    // try {
-    //   // Delete all raw HTML files
-    //   const rawFiles = fs.readdirSync(RAW_DIR);
-    //   for (const file of rawFiles) {
-    //     if (file.endsWith('.html')) {
-    //       try {
-    //         fs.unlinkSync(path.join(RAW_DIR, file));
-    //       } catch (e) {
-    //         // Ignore cleanup errors
-    //       }
-    //     }
-    //   }
-    //   
-    //   // Delete all processed run directories
-    //   const processedDirs = fs.readdirSync(PROCESSED_DIR);
-    //   for (const dir of processedDirs) {
-    //     if (dir.startsWith('run_')) {
-    //       try {
-    //         fs.rmSync(path.join(PROCESSED_DIR, dir), { recursive: true, force: true });
-    //       } catch (e) {
-    //         // Ignore cleanup errors
-    //       }
-    //     }
-    //   }
-    // } catch (e) {
-    //   // Ignore cleanup errors - don't fail the response
-    //   console.log('Cleanup warning:', e.message);
-    // }
+    // Cleanup: Delete ALL raw and processed files after successful prediction
+    try {
+      // Delete all raw HTML files
+      const rawFiles = fs.readdirSync(RAW_DIR);
+      for (const file of rawFiles) {
+        if (file.endsWith('.html')) {
+          try {
+            fs.unlinkSync(path.join(RAW_DIR, file));
+          } catch (e) {
+            // Ignore cleanup errors
+          }
+        }
+      }
+      
+      // Delete all processed run directories
+      const processedDirs = fs.readdirSync(PROCESSED_DIR);
+      for (const dir of processedDirs) {
+        if (dir.startsWith('run_')) {
+          try {
+            fs.rmSync(path.join(PROCESSED_DIR, dir), { recursive: true, force: true });
+          } catch (e) {
+            // Ignore cleanup errors
+          }
+        }
+      }
+    } catch (e) {
+      // Ignore cleanup errors - don't fail the response
+      console.log('Cleanup warning:', e.message);
+    }
 
     // Check if prediction has valid data
     if (!prediction || !prediction.predicted_price || prediction.data_points === 0 || prediction.data_points === "0") {
@@ -489,36 +495,35 @@ app.post('/api/run', async (req, res) => {
     // Clear progress when done
     delete progressStore[runId];
     
-    // Cleanup ALL files even on error - DISABLED for debugging
-    console.log('DEBUG: Error cleanup also disabled - files preserved for debugging');
-    // try {
-    //   // Delete all raw HTML files
-    //   const rawFiles = fs.readdirSync(RAW_DIR);
-    //   for (const file of rawFiles) {
-    //     if (file.endsWith('.html')) {
-    //       try {
-    //         fs.unlinkSync(path.join(RAW_DIR, file));
-    //       } catch (cleanupErr) {
-    //         // Ignore cleanup errors
-    //       }
-    //     }
-    //   }
-    //   
-    //   // Delete all processed run directories
-    //   const processedDirs = fs.readdirSync(PROCESSED_DIR);
-    //   for (const dir of processedDirs) {
-    //     if (dir.startsWith('run_')) {
-    //       try {
-    //         fs.rmSync(path.join(PROCESSED_DIR, dir), { recursive: true, force: true });
-    //       } catch (cleanupErr) {
-    //         // Ignore cleanup errors
-    //       }
-    //     }
-    //   }
-    // } catch (cleanupErr) {
-    //   // Ignore cleanup errors
-    //   console.log('Error cleanup warning:', cleanupErr.message);
-    // }
+    // Cleanup ALL files even on error
+    try {
+      // Delete all raw HTML files
+      const rawFiles = fs.readdirSync(RAW_DIR);
+      for (const file of rawFiles) {
+        if (file.endsWith('.html')) {
+          try {
+            fs.unlinkSync(path.join(RAW_DIR, file));
+          } catch (cleanupErr) {
+            // Ignore cleanup errors
+          }
+        }
+      }
+      
+      // Delete all processed run directories
+      const processedDirs = fs.readdirSync(PROCESSED_DIR);
+      for (const dir of processedDirs) {
+        if (dir.startsWith('run_')) {
+          try {
+            fs.rmSync(path.join(PROCESSED_DIR, dir), { recursive: true, force: true });
+          } catch (cleanupErr) {
+            // Ignore cleanup errors
+          }
+        }
+      }
+    } catch (cleanupErr) {
+      // Ignore cleanup errors
+      console.log('Error cleanup warning:', cleanupErr.message);
+    }
     
     return res.status(500).json({ ok: false, error: e.message || String(e) });
   }

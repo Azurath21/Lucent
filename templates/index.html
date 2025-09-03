@@ -70,6 +70,25 @@
           </div>
         </div>
 
+        <div class="row">
+          <div>
+            <label for="weighting_method">Weighting Method</label>
+            <select id="weighting_method" name="weighting_method">
+              <option value="heuristic" selected>Heuristic (Fast)</option>
+              <option value="ai">AI-based (Slower)</option>
+            </select>
+            <div class="hint">How to score item relevance</div>
+          </div>
+          <div>
+            <label for="price_predictor">Price Predictor</label>
+            <select id="price_predictor" name="price_predictor">
+              <option value="simple" selected>Simple Averaging</option>
+              <option value="advanced">Advanced Tree Model</option>
+            </select>
+            <div class="hint">Price prediction algorithm</div>
+          </div>
+        </div>
+
         <div class="actions">
           <button type="submit">Run Scraper</button>
         </div>

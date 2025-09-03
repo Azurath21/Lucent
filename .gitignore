@@ -121,6 +121,7 @@ yarn-error.log*
 # Electron build files
 dist/
 build/
+out/
 *.exe
 *.zip
 *.asar
@@ -128,7 +129,25 @@ build/
 *.dll
 *.pak
 *.bin
-*.json
+*.app
+*.dmg
+*.deb
+*.rpm
+*.AppImage
+
+# Electron specific
+electron-builder.yml
+.electron-builder.yml
+release/
+releases/
+
+# Electron Forge
+.webpack/
+.vite/
+
+# Auto-generated files
+package-lock.json
+yarn.lock
 
 # Chrome driver
 chromedriver.exe
