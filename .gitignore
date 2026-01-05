@@ -1,14 +1,6 @@
 # Virtual environment
 .venv/
 venv/
-env/
-
-# Node modules
-node_modules/
-
-# Environment variables
-.env
-.env.local
 
 # Python cache
 __pycache__/
@@ -17,9 +9,6 @@ __pycache__/
 
 # Extra folder (not part of main app)
 extra/
-
-# Processed data (runtime generated)
-processed/
 
 # Logs
 *.log
