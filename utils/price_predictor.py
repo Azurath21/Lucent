@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Price prediction model using tree regression.
+Price prediction model using XGBoost regression.
 Usage: python price_predictor.py <input_csv> <target_days>
 Returns predicted price to sell within target timeframe.
 """
@@ -12,7 +12,7 @@ import json
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
-from sklearn.ensemble import RandomForestRegressor
+from xgboost import XGBRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_absolute_error
 import warnings
@@ -56,7 +56,13 @@ def calculate_days_to_sell(listing_date, today=None):
 
 def predict_price(csv_path: str, target_days: int):
     """
-    Predict price based on relevance weight, days to sell, and historical prices.
+    Predict optimal selling price using XGBoost.
+    
+    Strategy:
+    - Use Relevance_Weight to identify the most relevant comparable items
+    - Calculate weighted price statistics
+    - Apply time-based discount for faster sales
+    - Use XGBoost to model price ~ Relevance_Weight relationship
     """
     try:
         # Read CSV
@@ -72,9 +78,9 @@ def predict_price(csv_path: str, target_days: int):
             raise ValueError("CSV file is empty")
         
         # Clean and convert data
-        # Handle Price column - convert to string first if needed
         df['Price'] = df['Price'].astype(str)
-        df['Price'] = df['Price'].str.replace('S$', '').str.replace('SGD', '').str.replace(',', '').str.strip()
+        # Handle currency symbols: S$, SGD, $
+        df['Price'] = df['Price'].str.replace(r'S\$', '', regex=True).str.replace('SGD', '').str.replace(r'\$', '', regex=True).str.replace(',', '').str.strip()
         df['Price'] = pd.to_numeric(df['Price'], errors='coerce')
         
         df['Date'] = pd.to_datetime(df['Date'], format='%Y-%m-%d', errors='coerce')
@@ -85,8 +91,9 @@ def predict_price(csv_path: str, target_days: int):
         else:
             df['Relevance_Weight'] = pd.to_numeric(df['Relevance_Weight'], errors='coerce').fillna(1.0)
         
-        # Remove rows with invalid dates
-        df = df.dropna(subset=['Date'])
+        # Remove rows with invalid prices
+        df = df.dropna(subset=['Price'])
+        df = df[df['Price'] > 0]
         
         if len(df) == 0:
             raise ValueError("No valid data rows after cleaning")
@@ -96,91 +103,122 @@ def predict_price(csv_path: str, target_days: int):
     
     # Process data
     df['price_numeric'] = df['Price']
-    df['days_to_sell'] = df['Date'].apply(lambda x: calculate_days_to_sell(x))
     
     # Filter out invalid data
     df = df[
         (df['price_numeric'] > 0) & 
-        (df['days_to_sell'] >= 0) & 
         (df['Relevance_Weight'] > 0)
     ]
     
+    if len(df) == 0:
+        raise ValueError("No valid data after filtering")
+    
+    # Calculate weighted statistics
+    weights = df['Relevance_Weight'].values
+    prices = df['price_numeric'].values
+    
+    # Weighted average price (more weight to relevant items)
+    weighted_avg = float(np.average(prices, weights=weights))
+    
+    # Price statistics
+    min_price = float(prices.min())
+    max_price = float(prices.max())
+    avg_price = float(prices.mean())
+    median_price = float(np.median(prices))
+    
     if len(df) < 3:
-        # Insufficient data for ML prediction - return highest relevance item
-        highest_relevance_item = df.loc[df['Relevance_Weight'].idxmax()]
+        # Insufficient data - use weighted average with time discount
+        if target_days <= 7:
+            discount = 0.85  # 15% discount for very quick sale
+        elif target_days <= 14:
+            discount = 0.90  # 10% discount
+        elif target_days <= 30:
+            discount = 0.95  # 5% discount
+        else:
+            discount = 1.0   # No discount for patient sale
+        
+        predicted_price = weighted_avg * discount
+        
         return {
             "ok": True,
-            "predicted_price": float(highest_relevance_item['price_numeric']),
-            "target_days": int(highest_relevance_item['days_to_sell']),
-            "data_points": len(df),
-            "model_accuracy_mae": "N/A - Insufficient data",
-            "fallback_reason": "Used highest relevance item due to insufficient data for ML prediction",
+            "predicted_price": round(float(predicted_price), 2),
+            "target_days": int(target_days),
+            "data_points": int(len(df)),
+            "model_accuracy_mae": "N/A - Used weighted average",
             "price_stats": {
-                'min_price': float(df['price_numeric'].min()),
-                'max_price': float(df['price_numeric'].max()),
-                'avg_price': float(df['price_numeric'].mean()),
-                'median_price': float(df['price_numeric'].median())
+                'min_price': min_price,
+                'max_price': max_price,
+                'avg_price': avg_price,
+                'median_price': median_price
             },
             "time_stats": {
-                'min_days': int(df['days_to_sell'].min()),
-                'max_days': int(df['days_to_sell'].max()),
-                'avg_days': float(df['days_to_sell'].mean())
+                'weighted_avg': round(weighted_avg, 2),
+                'discount_applied': f"{(1-discount)*100:.0f}%"
             },
-            "avg_relevance_used": round(float(highest_relevance_item['Relevance_Weight']), 3)
+            "avg_relevance_used": round(float(weights.mean()), 3)
         }
     
-    # Features: Relevance_Weight, days_to_sell
-    # Target: price_numeric
-    X = df[['Relevance_Weight', 'days_to_sell']]
-    y = df['price_numeric']
+    # Use XGBoost to model: price ~ Relevance_Weight
+    # This learns which prices correspond to which relevance levels
+    X = df[['Relevance_Weight']].values
+    y = prices
     
     # Train model
+    model = XGBRegressor(
+        n_estimators=100,
+        max_depth=4,
+        learning_rate=0.1,
+        random_state=42,
+        verbosity=0
+    )
+    
     if len(df) >= 10:
-        # Use train/test split if enough data
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-        model = RandomForestRegressor(n_estimators=50, random_state=42, max_depth=10)
         model.fit(X_train, y_train)
-        
-        # Calculate model accuracy
         y_pred = model.predict(X_test)
-        mae = mean_absolute_error(y_test, y_pred)
+        mae = float(mean_absolute_error(y_test, y_pred))
     else:
-        # Use all data for training if small dataset
-        model = RandomForestRegressor(n_estimators=50, random_state=42, max_depth=10)
         model.fit(X, y)
-        mae = 0
+        mae = 0.0
     
-    # Get average relevance weight for prediction
-    avg_relevance = df['Relevance_Weight'].mean()
+    # Predict price for high-relevance items (relevance=0.8-1.0)
+    # These are the most comparable items
+    high_relevance = min(1.0, weights.max())
+    base_price = float(model.predict(np.array([[high_relevance]]))[0])
     
-    # Predict price for target timeframe
-    prediction_input = np.array([[avg_relevance, target_days]])
-    predicted_price = model.predict(prediction_input)[0]
+    # Apply time-based discount
+    # Faster sale = lower price, patient sale = closer to market price
+    if target_days <= 7:
+        discount = 0.88  # 12% discount for very quick sale
+    elif target_days <= 14:
+        discount = 0.92  # 8% discount
+    elif target_days <= 30:
+        discount = 0.96  # 4% discount
+    else:
+        discount = 1.0   # No discount
     
-    # Get price statistics for context
-    price_stats = {
-        'min_price': float(df['price_numeric'].min()),
-        'max_price': float(df['price_numeric'].max()),
-        'avg_price': float(df['price_numeric'].mean()),
-        'median_price': float(df['price_numeric'].median())
-    }
+    predicted_price = base_price * discount
     
-    # Get timeframe statistics
-    time_stats = {
-        'min_days': int(df['days_to_sell'].min()),
-        'max_days': int(df['days_to_sell'].max()),
-        'avg_days': float(df['days_to_sell'].mean())
-    }
+    # Ensure price is within reasonable bounds
+    predicted_price = max(min_price * 0.7, min(predicted_price, max_price * 1.1))
     
     return {
         "ok": True,
-        "predicted_price": round(predicted_price, 2),
-        "target_days": target_days,
+        "predicted_price": round(float(predicted_price), 2),
+        "target_days": int(target_days),
         "model_accuracy_mae": round(mae, 2) if mae > 0 else "N/A",
-        "data_points": len(df),
-        "price_stats": price_stats,
-        "time_stats": time_stats,
-        "avg_relevance_used": round(avg_relevance, 3)
+        "data_points": int(len(df)),
+        "price_stats": {
+            'min_price': min_price,
+            'max_price': max_price,
+            'avg_price': round(avg_price, 2),
+            'median_price': median_price
+        },
+        "time_stats": {
+            'base_price': round(base_price, 2),
+            'discount_applied': f"{(1-discount)*100:.0f}%"
+        },
+        "avg_relevance_used": round(float(weights.mean()), 3)
     }
 
 def main():

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Simple price prediction without pandas dependency.
+Price prediction using Linear Regression.
 Usage: python simple_price_predictor.py <input_csv> <target_days>
 """
 
@@ -10,6 +10,8 @@ import csv
 import json
 import re
 from datetime import datetime
+from sklearn.linear_model import LinearRegression
+import numpy as np
 
 # Add debug output to stderr
 def debug_print(msg):
@@ -23,147 +25,152 @@ def parse_price(price_str):
     numbers = re.findall(r'\d+\.?\d*', str(price_str).replace(',', ''))
     return float(numbers[0]) if numbers else 0
 
+def parse_date(date_str):
+    """Parse date string to datetime object."""
+    if not date_str:
+        return None
+    try:
+        for fmt in ['%Y-%m-%d', '%Y-%d-%m', '%d-%m-%Y', '%m-%d-%Y']:
+            try:
+                return datetime.strptime(date_str, fmt)
+            except:
+                continue
+        return None
+    except:
+        return None
+
+def calculate_days_to_sell(listing_date, today=None):
+    """Calculate days from listing to today."""
+    if today is None:
+        today = datetime.now()
+    if isinstance(listing_date, str):
+        listing_date = parse_date(listing_date)
+    if listing_date is None:
+        return 0
+    delta = today - listing_date
+    return max(0, delta.days)
+
 def simple_predict_price(csv_path: str, target_days: int):
     """
-    Simple price prediction using basic CSV parsing and statistics.
+    Price prediction using Linear Regression model.
+    Features: Relevance_Weight, days_to_sell
+    Target: price
     """
     try:
         debug_print(f"Reading CSV file: {csv_path}")
         
         # Read CSV file
-        prices = []
-        items = []
-        weights_found = False
+        data = []
         
         with open(csv_path, 'r', encoding='utf-8') as csvfile:
             reader = csv.DictReader(csvfile)
-            
             debug_print(f"CSV columns: {reader.fieldnames}")
             
             for row in reader:
                 price_str = row.get('Price', '')
-                item_name = row.get('Item', '')
-                weight_str = row.get('Relevance_Weight', '1.0')  # Default weight if missing
+                date_str = row.get('Date', '')
+                weight_str = row.get('Relevance_Weight', '1.0')
                 
-                debug_print(f"Processing row - Price: {price_str}, Weight: {weight_str}")
-                
-                if price_str and item_name:
+                if price_str:
                     price = parse_price(price_str)
                     weight = float(weight_str) if weight_str else 1.0
+                    days = calculate_days_to_sell(date_str) if date_str else 0
                     
-                    if price > 0:
-                        # Store price and weight for weighted calculation
-                        prices.append((price, weight))
-                        items.append(f"{item_name} (weight: {weight:.2f})")
-                        debug_print(f"Added price: {price}, weight: {weight}")
+                    if price > 0 and weight > 0:
+                        data.append({
+                            'price': price,
+                            'weight': weight,
+                            'days': days
+                        })
+                        debug_print(f"Added: price={price}, weight={weight}, days={days}")
         
-        debug_print(f"Total prices found: {len(prices)}")
+        debug_print(f"Total data points: {len(data)}")
         
-        if not prices:
-            # Return a valid JSON structure even with no data
-            result = {
+        if not data:
+            return {
                 'predicted_price': 0,
-                'price_range': {
-                    'min': 0,
-                    'max': 0,
-                    'avg': 0
-                },
+                'price_range': {'min': 0, 'max': 0, 'avg': 0},
                 'confidence': 0,
                 'target_days': target_days,
                 'sample_size': 0,
                 'recommendation': 'No market data available - consider manual pricing',
-                'market_analysis': {
-                    'lowest_price': 0,
-                    'highest_price': 0,
-                    'average_market_price': 0,
-                    'suggested_discount': '0%'
-                },
                 'status': 'no_data'
             }
-            return result
         
-        # Calculate weighted statistics
-        total_weighted_price = sum(price * weight for price, weight in prices)
-        total_weight = sum(weight for price, weight in prices)
+        # Extract features and target
+        prices = np.array([d['price'] for d in data])
+        weights = np.array([d['weight'] for d in data])
+        days = np.array([d['days'] for d in data])
         
-        # Weighted average price
-        avg_price = total_weighted_price / total_weight if total_weight > 0 else 0
+        min_price = float(prices.min())
+        max_price = float(prices.max())
+        avg_price = float(prices.mean())
         
-        # Min/max from actual prices (not weighted)
-        raw_prices = [price for price, weight in prices]
-        min_price = min(raw_prices)
-        max_price = max(raw_prices)
+        if len(data) < 3:
+            # Not enough data for regression - use weighted average
+            weighted_avg = np.sum(prices * weights) / np.sum(weights)
+            return {
+                "ok": True,
+                "predicted_price": round(float(weighted_avg), 2),
+                "target_days": target_days,
+                "data_points": len(data),
+                "model_accuracy_mae": "N/A - Insufficient data for regression",
+                "price_stats": {"min": min_price, "max": max_price, "avg": avg_price},
+                "time_stats": {"min_days": int(days.min()), "max_days": int(days.max()), "avg_days": float(days.mean())},
+                "avg_relevance_used": round(float(weights.mean()), 3)
+            }
         
-        # Simple prediction logic
-        # For faster sales (≤30 days), apply discount
-        # For longer sales (>30 days), price closer to average
-        if target_days <= 15:
-            discount_factor = 0.90  # 10% discount for quick sale
-        elif target_days <= 30:
-            discount_factor = 0.95  # 5% discount
-        else:
-            discount_factor = 0.98  # 2% discount for patient sale
+        # Build features matrix: [weight, days]
+        X = np.column_stack([weights, days])
+        y = prices
         
-        predicted_price = avg_price * discount_factor
+        # Train Linear Regression model
+        model = LinearRegression()
+        model.fit(X, y)
         
-        # Confidence based on sample size and price variance
-        price_range = max_price - min_price
-        variance_ratio = price_range / avg_price if avg_price > 0 else 1
+        # Calculate R² score for accuracy
+        r2_score = model.score(X, y)
         
-        if len(prices) >= 10:
-            base_confidence = 0.9
-        elif len(prices) >= 5:
-            base_confidence = 0.8
-        elif len(prices) >= 3:
-            base_confidence = 0.7
-        else:
-            base_confidence = 0.6
+        # Predict for target days with average relevance weight
+        avg_weight = weights.mean()
+        prediction_input = np.array([[avg_weight, target_days]])
+        predicted_price = model.predict(prediction_input)[0]
         
-        # Add weighted information to results
-        avg_weight = total_weight / len(prices) if len(prices) > 0 else 1.0
-        
-        # Calculate confidence properly
-        confidence = base_confidence * (1 - min(variance_ratio * 0.1, 0.3))
+        # Ensure predicted price is reasonable (within min-max range with some buffer)
+        predicted_price = max(min_price * 0.5, min(predicted_price, max_price * 1.5))
         
         return {
-            "predicted_price": predicted_price,
+            "ok": True,
+            "predicted_price": round(float(predicted_price), 2),
             "target_days": target_days,
-            "data_points": len(prices),
-            "model_accuracy_mae": f"{confidence * 100:.0f}",
-            "price_stats": {
-                "min": min_price,
-                "max": max_price,
-                "avg": avg_price
-            },
+            "data_points": len(data),
+            "model_accuracy_mae": round(r2_score * 100, 1),  # R² as percentage
+            "price_stats": {"min": min_price, "max": max_price, "avg": avg_price},
             "time_stats": {
-                "sample_size": len(prices),
-                "confidence": confidence,
-                "recommendation": f"Price at ${predicted_price:.0f} for {target_days}-day sale"
+                "min_days": int(days.min()),
+                "max_days": int(days.max()),
+                "avg_days": round(float(days.mean()), 1)
+            },
+            "avg_relevance_used": round(float(avg_weight), 3),
+            "model_coefficients": {
+                "weight_coef": round(float(model.coef_[0]), 4),
+                "days_coef": round(float(model.coef_[1]), 4),
+                "intercept": round(float(model.intercept_), 2)
             }
         }
         
     except Exception as e:
-        # Return valid JSON structure for errors too
-        result = {
+        debug_print(f"Error: {str(e)}")
+        return {
+            'ok': False,
             'predicted_price': 0,
-            'price_range': {
-                'min': 0,
-                'max': 0,
-                'avg': 0
-            },
+            'price_range': {'min': 0, 'max': 0, 'avg': 0},
             'confidence': 0,
             'target_days': target_days,
             'sample_size': 0,
             'recommendation': f'Error: {str(e)}',
-            'market_analysis': {
-                'lowest_price': 0,
-                'highest_price': 0,
-                'average_market_price': 0,
-                'suggested_discount': '0%'
-            },
             'status': 'error'
         }
-        return result
 
 if __name__ == "__main__":
     debug_print("Script started")

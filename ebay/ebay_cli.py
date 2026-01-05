@@ -2,8 +2,6 @@ import argparse
 import json
 import sys
 import os
-import csv
-import time
 from .ebay_scraper import EbayScraper
 
 def main():
@@ -18,13 +16,17 @@ def main():
     parser.add_argument("--min_price", default="0", help="Minimum price filter")
     parser.add_argument("--max_price", default="", help="Maximum price filter")
     parser.add_argument("--location", default="1", help="Location preference: 1=Singapore")
-    # Keep these as optional operational controls
+    # Operational controls
     parser.add_argument("--delay", type=int, default=2, help="Delay between requests")
+    parser.add_argument("--mode", default="ultra_fast", choices=['ultra_fast', 'fast', 'normal'],
+                        help="Speed mode: ultra_fast (5 pages), fast (10 pages), normal (15 pages)")
     args = parser.parse_args()
 
-    # Ensure raw directory exists
+    # Ensure directories exist
     os.makedirs("raw", exist_ok=True)
+    os.makedirs("processed", exist_ok=True)
 
+    scraper = None
     try:
         scraper = EbayScraper(
             item=args.item,
@@ -35,7 +37,8 @@ def main():
             min_price=args.min_price,
             max_price=args.max_price,
             location=args.location,
-            delay=args.delay
+            delay=args.delay,
+            mode=args.mode
         )
         
         result = scraper.run_and_save()
@@ -44,6 +47,9 @@ def main():
     except Exception as e:
         print(json.dumps({"ok": False, "error": str(e)}))
         sys.exit(1)
+    finally:
+        if scraper:
+            scraper.close()
 
 if __name__ == "__main__":
     main()

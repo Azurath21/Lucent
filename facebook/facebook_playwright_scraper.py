@@ -2,12 +2,10 @@
 
 import os
 import csv
-import time
-import random
 from datetime import datetime
 from playwright.sync_api import sync_playwright
 from bs4 import BeautifulSoup
-from typing import List, Dict, Optional
+from typing import List, Dict
 
 class FacebookPlaywrightScraper:
     """
